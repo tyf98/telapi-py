@@ -11,7 +11,7 @@ from staticmap import StaticMap, CircleMarker
 app = FastAPI()
 
 @app.get("/", response_class=Response)
-def qrdemo(color: str = '#7A663C', logourl: str = "https://i0.wp.com/godofwealth.co/wp-content/uploads/2023/10/happy-chinese-new-year-2024-thumb.jpg"):
+def qrdemo(color: str = '#7A663C', logolocation: str = 'online', logourl: str = "https://i0.wp.com/godofwealth.co/wp-content/uploads/2023/10/happy-chinese-new-year-2024-thumb.jpg"):
     # Generate QR code
     qr = segno.make_qr('Hello World!', error='h')
     qr_buffer = BytesIO()
@@ -21,12 +21,22 @@ def qrdemo(color: str = '#7A663C', logourl: str = "https://i0.wp.com/godofwealth
     # Open QR code image
     qr_image = Image.open(qr_buffer).convert('RGBA')  # Convert QR code to RGBA mode
 
-    # Download overlay image from URL
-    response = requests.get(logourl)
-    overlay_image = Image.open(BytesIO(response.content)).convert('RGBA')  # Convert overlay image to RGBA mode
+    if logolocation == 'online':
+        # Download overlay image from URL
+        try:
+            response = requests.get(logourl)
+        except requests.exceptions.RequestException as e:
+            logging.error(f" Invalid URL or base64 image: {e}")
+            return JSONResponse(content={"error": "Invalid URL or base64 image"})
 
-    # Local image
-    # overlay_image = Image.open('logo.png').convert('RGBA')  # Convert overlay image to RGBA mode
+        # Check if the URL points to an image
+        if 'content-type' not in response.headers or 'image' not in response.headers['content-type']:
+            logging.error("  URL does not point to an image")
+            return JSONResponse(content={"error": "URL does not point to an image"})
+        
+        overlay_image = Image.open(BytesIO(response.content)).convert('RGBA')  # Convert overlay image to RGBA mode
+    else:
+        overlay_image = Image.open(logourl).convert('RGBA')  # Convert overlay image to RGBA mode
 
     # Call the overlay_qr_code function with the desired percentage
     percentageOfQrCode = 0.3
@@ -40,7 +50,7 @@ def qrdemo(color: str = '#7A663C', logourl: str = "https://i0.wp.com/godofwealth
     return StreamingResponse(result_buffer, media_type="image/png")
 
 @app.get("/qrcode", response_class=Response)
-def qrdemo(data:str, color: str = '#7A663C', logourl='https://www.sgcarmart.com/_next/image?url=https%3A%2F%2Fi.i-sgcm.com%2Fnews%2Farticle_news%2F2020%2F22464_3_l.jpg&w=1920&q=75'):
+def qrdemo(data:str, color: str = '#7A663C', logolocation: str = 'online', logourl: str ='https://www.sgcarmart.com/_next/image?url=https%3A%2F%2Fi.i-sgcm.com%2Fnews%2Farticle_news%2F2020%2F22464_3_l.jpg&w=1920&q=75'):
     # Generate QR code
     qr = segno.make_qr(data, error='h')
     qr_buffer = BytesIO()
@@ -50,19 +60,22 @@ def qrdemo(data:str, color: str = '#7A663C', logourl='https://www.sgcarmart.com/
     # Open QR code image
     qr_image = Image.open(qr_buffer).convert('RGBA')  # Convert QR code to RGBA mode
 
-    # Download overlay image from URL
-    try:
-        response = requests.get(logourl)
-    except requests.exceptions.RequestException as e:
-        logging.error(f" Invalid URL or base64 image: {e}")
-        return JSONResponse(content={"error": "Invalid URL or base64 image"})
+    if logolocation == 'online':
+        # Download overlay image from URL
+        try:
+            response = requests.get(logourl)
+        except requests.exceptions.RequestException as e:
+            logging.error(f" Invalid URL or base64 image: {e}")
+            return JSONResponse(content={"error": "Invalid URL or base64 image"})
 
-    # Check if the URL points to an image
-    if 'content-type' not in response.headers or 'image' not in response.headers['content-type']:
-        logging.error("  URL does not point to an image")
-        return JSONResponse(content={"error": "URL does not point to an image"})
-    
-    overlay_image = Image.open(BytesIO(response.content)).convert('RGBA')  # Convert overlay image to RGBA mode
+        # Check if the URL points to an image
+        if 'content-type' not in response.headers or 'image' not in response.headers['content-type']:
+            logging.error("  URL does not point to an image")
+            return JSONResponse(content={"error": "URL does not point to an image"})
+        
+        overlay_image = Image.open(BytesIO(response.content)).convert('RGBA')  # Convert overlay image to RGBA mode
+    else:
+        overlay_image = Image.open(logourl).convert('RGBA')  # Convert overlay image to RGBA mode
 
     # Call the overlay_qr_code function with the desired percentage
     percentageOfQrCode = 0.3
