@@ -12,53 +12,25 @@ app = FastAPI()
 
 @app.get("/", response_class=Response)
 def qrdemo(color: str = '#7A663C', logolocation: str = 'online', logourl: str = "https://i0.wp.com/godofwealth.co/wp-content/uploads/2023/10/happy-chinese-new-year-2024-thumb.jpg"):
-    # Generate QR code
-    qr = segno.make_qr('Hello World!', error='h')
-    qr_buffer = BytesIO()
-    qr.save(qr_buffer, kind='png', scale=32, border = 2, dark=color)
-    qr_buffer.seek(0)
-
     # Open QR code image
-    qr_image = Image.open(qr_buffer).convert('RGBA')  # Convert QR code to RGBA mode
-
-    # Fetch overlay image
-    overlay_image = fetch_logo(logolocation, logourl)
+    qr_image = Image.open(generate_qr('Hello World!', color)).convert('RGBA')  # Convert QR code to RGBA mode
 
     # Call the overlay_qr_code function with the desired percentage
-    percentageOfQrCode = 0.3
-    qr_image = overlay_qr_code(qr_image, overlay_image, percentageOfQrCode)
+    qr_image = overlay_qr_code(qr_image, fetch_logo(logolocation, logourl), percentageOfQrCode)
 
     # Save result
-    result_buffer = BytesIO()
-    qr_image.save(result_buffer, format='png')
-    result_buffer.seek(0)
-
-    return StreamingResponse(result_buffer, media_type="image/png")
+    return save_result(qr_image)
 
 @app.get("/qrcode", response_class=Response)
 def qrdemo(data:str, color: str = '#7A663C', logolocation: str = 'online', logourl: str ='https://www.sgcarmart.com/_next/image?url=https%3A%2F%2Fi.i-sgcm.com%2Fnews%2Farticle_news%2F2020%2F22464_3_l.jpg&w=1920&q=75'):
-    # Generate QR code
-    qr = segno.make_qr(data, error='h')
-    qr_buffer = BytesIO()
-    qr.save(qr_buffer, kind='png', scale=32, border = 2, dark=color)
-    qr_buffer.seek(0)
-
     # Open QR code image
-    qr_image = Image.open(qr_buffer).convert('RGBA')  # Convert QR code to RGBA mode
-
-    # Fetch overlay image
-    overlay_image = fetch_logo(logolocation, logourl)
+    qr_image = Image.open(generate_qr(data, color)).convert('RGBA')  # Convert QR code to RGBA mode
 
     # Call the overlay_qr_code function with the desired percentage
-    percentageOfQrCode = 0.3
-    qr_image = overlay_qr_code(qr_image, overlay_image, percentageOfQrCode)
+    qr_image = overlay_qr_code(qr_image, fetch_logo(logolocation, logourl), percentageOfQrCode)
 
     # Save result
-    result_buffer = BytesIO()
-    qr_image.save(result_buffer, format='png')
-    result_buffer.seek(0)
-
-    return StreamingResponse(result_buffer, media_type="image/png")
+    return save_result(qr_image)
 
 @app.get("/generate_map")
 def generate_map(deviceLat: float, deviceLon: float):
@@ -74,44 +46,32 @@ def generate_map(deviceLat: float, deviceLon: float):
     # Render the map to an image
     image = m.render()
 
-    # Save the image to a BytesIO buffer
-    result_buffer = BytesIO()
-    image.save(result_buffer, format='png')
-    result_buffer.seek(0)
-
-    # Return the image
-    return StreamingResponse(result_buffer, media_type="image/png")
-
+    # Save result
+    return save_result(image)
 
 @app.get("/vcard", response_class=Response)
 def vcard_qr(first_name: str, last_name: str, organisation: str, title: str, email: str, phone: str, street: str, city: str, state: str, country: str, postal: str, website: str, color: str = '#7A663C', logolocation: str = 'online', logourl: str = 'https://www.sgcarmart.com/_next/image?url=https%3A%2F%2Fi.i-sgcm.com%2Fnews%2Farticle_news%2F2020%2F22464_3_l.jpg&w=1920&q=75'):
     # Generate vCard data manually
     vcard_data = f'BEGIN:VCARD\nVERSION:3.0\nN:{last_name};{first_name}\nFN:{first_name} {last_name}\nORG:{organisation}\nTITLE:{title}\nEMAIL:{email}\nTEL;TYPE=cell:{phone}\nADR;TYPE=Work:;;{street};{city};{state};{postal};{country}\nURL:{website}\nEND:VCARD'
 
-    # Generate QR code
-    qr = segno.make_qr(vcard_data, error='h')
-    qr_buffer = BytesIO()
-    qr.save(qr_buffer, kind='png', scale=32, dark=color, border = 2)
-    qr_buffer.seek(0)
-
     # Open QR code image
-    qr_image = Image.open(qr_buffer).convert('RGBA')  # Convert QR code to RGBA mode
-    
-    # Fetch overlay image
-    overlay_image = fetch_logo(logolocation, logourl)
+    qr_image = Image.open(generate_qr(vcard_data, color)).convert('RGBA')  # Convert QR code to RGBA mode
 
     # Call the overlay_qr_code function with the desired percentage
-    percentageOfQrCode = 0.3
-    qr_image = overlay_qr_code(qr_image, overlay_image, percentageOfQrCode)
+    qr_image = overlay_qr_code(qr_image, fetch_logo(logolocation, logourl), percentageOfQrCode)
     
     # Save result
-    result_buffer = BytesIO()
-    qr_image.save(result_buffer, format='png')
-    result_buffer.seek(0)
+    return save_result(qr_image)
 
-    return StreamingResponse(result_buffer, media_type="image/png")
-
-##### Functions #####
+##### Functions and Variables #####
+percentageOfQrCode = 0.3
+def generate_qr(data: str, color: str = '#000000'):
+    # Generate QR code
+    qr = segno.make_qr(data, error='h')
+    qr_buffer = BytesIO()
+    qr.save(qr_buffer, kind='png', scale=32, border = 2, dark=color)
+    qr_buffer.seek(0)
+    return qr_buffer
 
 def overlay_qr_code(qr_image, overlay_image, percentageOfQrCode):
     # Calculate size for overlay image (maintain aspect ratio)
@@ -147,3 +107,11 @@ def fetch_logo(logolocation: str, logourl: str):
         return Image.open(BytesIO(response.content)).convert('RGBA')  # Convert overlay image to RGBA mode
     else:
         return Image.open(logourl).convert('RGBA')  # Convert overlay image to RGBA mode
+    
+def save_result(qr_image: Image):
+    # Save result
+    result_buffer = BytesIO()
+    qr_image.save(result_buffer, format='png')
+    result_buffer.seek(0)
+
+    return StreamingResponse(result_buffer, media_type="image/png")
