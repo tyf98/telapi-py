@@ -21,22 +21,8 @@ def qrdemo(color: str = '#7A663C', logolocation: str = 'online', logourl: str = 
     # Open QR code image
     qr_image = Image.open(qr_buffer).convert('RGBA')  # Convert QR code to RGBA mode
 
-    if logolocation == 'online':
-        # Download overlay image from URL
-        try:
-            response = requests.get(logourl)
-        except requests.exceptions.RequestException as e:
-            logging.error(f" Invalid URL or base64 image: {e}")
-            return JSONResponse(content={"error": "Invalid URL or base64 image"})
-
-        # Check if the URL points to an image
-        if 'content-type' not in response.headers or 'image' not in response.headers['content-type']:
-            logging.error("  URL does not point to an image")
-            return JSONResponse(content={"error": "URL does not point to an image"})
-        
-        overlay_image = Image.open(BytesIO(response.content)).convert('RGBA')  # Convert overlay image to RGBA mode
-    else:
-        overlay_image = Image.open(logourl).convert('RGBA')  # Convert overlay image to RGBA mode
+    # Fetch overlay image
+    overlay_image = fetch_logo(logolocation, logourl)
 
     # Call the overlay_qr_code function with the desired percentage
     percentageOfQrCode = 0.3
@@ -60,22 +46,8 @@ def qrdemo(data:str, color: str = '#7A663C', logolocation: str = 'online', logou
     # Open QR code image
     qr_image = Image.open(qr_buffer).convert('RGBA')  # Convert QR code to RGBA mode
 
-    if logolocation == 'online':
-        # Download overlay image from URL
-        try:
-            response = requests.get(logourl)
-        except requests.exceptions.RequestException as e:
-            logging.error(f" Invalid URL or base64 image: {e}")
-            return JSONResponse(content={"error": "Invalid URL or base64 image"})
-
-        # Check if the URL points to an image
-        if 'content-type' not in response.headers or 'image' not in response.headers['content-type']:
-            logging.error("  URL does not point to an image")
-            return JSONResponse(content={"error": "URL does not point to an image"})
-        
-        overlay_image = Image.open(BytesIO(response.content)).convert('RGBA')  # Convert overlay image to RGBA mode
-    else:
-        overlay_image = Image.open(logourl).convert('RGBA')  # Convert overlay image to RGBA mode
+    # Fetch overlay image
+    overlay_image = fetch_logo(logolocation, logourl)
 
     # Call the overlay_qr_code function with the desired percentage
     percentageOfQrCode = 0.3
@@ -112,7 +84,7 @@ def generate_map(deviceLat: float, deviceLon: float):
 
 
 @app.get("/vcard", response_class=Response)
-def vcard_qr(first_name: str, last_name: str, organisation: str, title: str, email: str, phone: str, street: str, city: str, state: str, country: str, postal: str, website: str, color: str = '#7A663C', logourl: str = 'https://www.sgcarmart.com/_next/image?url=https%3A%2F%2Fi.i-sgcm.com%2Fnews%2Farticle_news%2F2020%2F22464_3_l.jpg&w=1920&q=75'):
+def vcard_qr(first_name: str, last_name: str, organisation: str, title: str, email: str, phone: str, street: str, city: str, state: str, country: str, postal: str, website: str, color: str = '#7A663C', logolocation: str = 'online', logourl: str = 'https://www.sgcarmart.com/_next/image?url=https%3A%2F%2Fi.i-sgcm.com%2Fnews%2Farticle_news%2F2020%2F22464_3_l.jpg&w=1920&q=75'):
     # Generate vCard data manually
     vcard_data = f'BEGIN:VCARD\nVERSION:3.0\nN:{last_name};{first_name}\nFN:{first_name} {last_name}\nORG:{organisation}\nTITLE:{title}\nEMAIL:{email}\nTEL;TYPE=cell:{phone}\nADR;TYPE=Work:;;{street};{city};{state};{postal};{country}\nURL:{website}\nEND:VCARD'
 
@@ -125,18 +97,8 @@ def vcard_qr(first_name: str, last_name: str, organisation: str, title: str, ema
     # Open QR code image
     qr_image = Image.open(qr_buffer).convert('RGBA')  # Convert QR code to RGBA mode
     
-    try:
-        response = requests.get(logourl)
-    except requests.exceptions.RequestException as e:
-        logging.error(f" Invalid URL or base64 image: {e}")
-        return JSONResponse(content={"error": "Invalid URL or base64 image"})
-
-    # Check if the URL points to an image
-    if 'content-type' not in response.headers or 'image' not in response.headers['content-type']:
-        logging.error("  URL does not point to an image")
-        return JSONResponse(content={"error": "URL does not point to an image"})
-    
-    overlay_image = Image.open(BytesIO(response.content)).convert('RGBA')  # Convert overlay image to RGBA mode
+    # Fetch overlay image
+    overlay_image = fetch_logo(logolocation, logourl)
 
     # Call the overlay_qr_code function with the desired percentage
     percentageOfQrCode = 0.3
@@ -149,6 +111,7 @@ def vcard_qr(first_name: str, last_name: str, organisation: str, title: str, ema
 
     return StreamingResponse(result_buffer, media_type="image/png")
 
+##### Functions #####
 
 def overlay_qr_code(qr_image, overlay_image, percentageOfQrCode):
     # Calculate size for overlay image (maintain aspect ratio)
@@ -166,3 +129,21 @@ def overlay_qr_code(qr_image, overlay_image, percentageOfQrCode):
 
     # Return the modified qr_image
     return qr_image
+
+def fetch_logo(logolocation: str, logourl: str):
+    if logolocation == 'online':
+        # Download overlay image from URL
+        try:
+            response = requests.get(logourl)
+        except requests.exceptions.RequestException as e:
+            logging.error(f" Invalid URL or base64 image: {e}")
+            return JSONResponse(content={"error": "Invalid URL or base64 image"})
+
+        # Check if the URL points to an image
+        if 'content-type' not in response.headers or 'image' not in response.headers['content-type']:
+            logging.error("  URL does not point to an image")
+            return JSONResponse(content={"error": "URL does not point to an image"})
+        
+        return Image.open(BytesIO(response.content)).convert('RGBA')  # Convert overlay image to RGBA mode
+    else:
+        return Image.open(logourl).convert('RGBA')  # Convert overlay image to RGBA mode
