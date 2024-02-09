@@ -69,7 +69,7 @@ def generate_qr(data: str, color: str = '#000000'):
     # Generate QR code
     qr = segno.make_qr(data, error='h')
     qr_buffer = BytesIO()
-    qr.save(qr_buffer, kind='png', scale=32, border = 2, dark=color)
+    qr.save(qr_buffer, kind='png', scale=32, border = 0, dark=color)
     qr_buffer.seek(0)
     return qr_buffer
 
