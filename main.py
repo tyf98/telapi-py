@@ -7,7 +7,7 @@ import segno
 import logging
 from fastapi.responses import JSONResponse
 from staticmap import StaticMap, CircleMarker
-
+from geopy.geocoders import Nominatim
 app = FastAPI()
 
 @app.get("/", response_class=Response)
@@ -48,6 +48,12 @@ def generate_map(deviceLat: float, deviceLon: float):
 
     # Save result
     return save_result(image)
+
+@app.get("/get_address")
+def get_address(deviceLat: float, deviceLon: float):
+    geolocator = Nominatim(user_agent="geoapiExercises")
+    location = geolocator.reverse([deviceLat, deviceLon])
+    return location.address
 
 @app.get("/vcard", response_class=Response)
 def vcard_qr(first_name: str, last_name: str, organisation: str, title: str, email: str, phone: str, street: str, city: str, state: str, country: str, postal: str, website: str, color: str = '#7A663C', logourl: str = 'https://www.sgcarmart.com/_next/image?url=https%3A%2F%2Fi.i-sgcm.com%2Fnews%2Farticle_news%2F2020%2F22464_3_l.jpg&w=1920&q=75'):
