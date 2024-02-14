@@ -52,7 +52,7 @@ def generate_map(deviceLat: float, deviceLon: float):
 @app.get("/get_address")
 def get_address(deviceLat: float, deviceLon: float):
     geolocator = Nominatim(user_agent="geoapiExercises")
-    location = geolocator.reverse([lat, lon], exactly_one=True)
+    location = geolocator.reverse([deviceLat, deviceLon], exactly_one=True)
     address = location.raw['address']
     formatted_address = f"{address.get('house_number', '')} {address.get('road', '')}, {address.get('country', '')} {address.get('postcode', '')}"
     return formatted_address
