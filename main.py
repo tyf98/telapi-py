@@ -22,7 +22,7 @@ def qrdemo(color: str = '#7A663C', logourl: str = "https://i0.wp.com/godofwealth
     return save_result(qr_image)
 
 @app.get("/qrcode", response_class=Response)
-def qrdemo(data:str, color: str = '#7A663C', logourl: str ='https://www.sgcarmart.com/_next/image?url=https%3A%2F%2Fi.i-sgcm.com%2Fnews%2Farticle_news%2F2020%2F22464_3_l.jpg&w=1920&q=75'):
+def qrdemo(data:str, color: str = '#7A663C', logourl: str ='https://www.sgcarmart.com/_next/image?url=https%3A%2F%2Fi.i-sgcm.com%2Fnews%2Farticle_news%2F2020%2F22464_3_l.jpg&w=1920&q=75', percentageOfQrCode: float=0.3):
     # Open QR code image
     qr_image = Image.open(generate_qr(data, color)).convert('RGBA')  # Convert QR code to RGBA mode
 
@@ -72,7 +72,6 @@ def vcard_qr(first_name: str, last_name: str, organisation: str, title: str, ema
     return save_result(qr_image)
 
 ##### Functions and Variables #####
-percentageOfQrCode = 0.3
 def generate_qr(data: str, color: str = '#000000'):
     # Generate QR code
     qr = segno.make_qr(data, error='h')
