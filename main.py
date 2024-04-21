@@ -22,7 +22,7 @@ def qrdemo(color: str = '#7A663C', logourl: str = "https://i0.wp.com/godofwealth
     return save_result(qr_image)
 
 @app.get("/qrcode", response_class=Response)
-def qrdemo(data:str, color: str = '#7A663C', logourl: str ='https://www.sgcarmart.com/_next/image?url=https%3A%2F%2Fi.i-sgcm.com%2Fnews%2Farticle_news%2F2020%2F22464_3_l.jpg&w=1920&q=75', percentageOfQrCode: float=0.3):
+def qrcode(data:str, color: str = '#7A663C', logourl: str ='https://www.sgcarmart.com/_next/image?url=https%3A%2F%2Fi.i-sgcm.com%2Fnews%2Farticle_news%2F2020%2F22464_3_l.jpg&w=1920&q=75', percentageOfQrCode: float=0.3):
     # Open QR code image
     qr_image = Image.open(generate_qr(data, color)).convert('RGBA')  # Convert QR code to RGBA mode
 
@@ -81,6 +81,11 @@ def generate_qr(data: str, color: str = '#000000'):
     return qr_buffer
 
 def overlay_qr_code(qr_image, overlay_image, percentageOfQrCode):
+    # Check if overlay_image is not None
+    if overlay_image is None:
+        logging.error("Overlay image is not available")
+        return qr_image  # Return the original qr_image without overlay
+        
     # Calculate size for overlay image (maintain aspect ratio)
     qr_code_size_without_border = qr_image.width - 4 * 2 * 32  # Subtract the size of the quiet zone
     overlay_size = int(qr_code_size_without_border * percentageOfQrCode)  # Change this line
