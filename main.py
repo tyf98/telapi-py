@@ -110,7 +110,12 @@ def fetch_logo(logourl: str):
         logging.error("  URL does not point to an image")
         return JSONResponse(content={"error": "URL does not point to an image"})
     
-    return Image.open(BytesIO(response.content)).convert('RGBA')  # Convert overlay image to RGBA mode
+    #return Image.open(BytesIO(response.content)).convert('RGBA')  # Convert overlay image to RGBA mode
+    try:
+        return Image.open(BytesIO(response.content)).convert('RGBA')  # Convert overlay image to RGBA mode
+    except Exception as e:
+        logging.error(f" Error while opening the image: {e}")
+        return JSONResponse(content={"error": "Error while opening the image"})
     
 def save_result(qr_image: Image):
     # Save result
