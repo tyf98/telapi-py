@@ -11,7 +11,7 @@ from geopy.geocoders import Nominatim
 app = FastAPI()
 
 @app.get("/", response_class=Response)
-def qrdemo(color: str = '#7A663C', logourl: str = "https://i0.wp.com/godofwealth.co/wp-content/uploads/2023/10/happy-chinese-new-year-2024-thumb.jpg"):
+def qrdemo(color: str = '#7A663C', logourl: str = "https://i0.wp.com/godofwealth.co/wp-content/uploads/2023/10/happy-chinese-new-year-2024-thumb.jpg", percentageOfQrCode: float=0.3):
     # Open QR code image
     qr_image = Image.open(generate_qr('Hello World!', color)).convert('RGBA')  # Convert QR code to RGBA mode
 
