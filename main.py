@@ -8,6 +8,7 @@ import logging
 from fastapi.responses import JSONResponse
 from staticmap import StaticMap, CircleMarker
 from geopy.geocoders import Nominatim
+
 app = FastAPI()
 
 @app.get("/", response_class=Response)
@@ -35,7 +36,7 @@ def qrcode(data:str, color: str = '#7A663C', logourl: str ='https://www.sgcarmar
 @app.get("/generate_map")
 def generate_map(deviceLat: float, deviceLon: float):
     # Create a new static map
-    m = StaticMap(200, 200)
+    m = StaticMap(400, 400)
 
     # Create a marker for the device location
     marker = CircleMarker((deviceLon, deviceLat), 'red', 12)
@@ -51,25 +52,13 @@ def generate_map(deviceLat: float, deviceLon: float):
 
 @app.get("/get_address")
 def get_address(deviceLat: float, deviceLon: float):
-    geolocator = Nominatim(user_agent="geoapiExercises")
+    
+    geolocator = Nominatim(user_agent="Power_API")
     location = geolocator.reverse([deviceLat, deviceLon], exactly_one=True)
     address = location.raw['address']
     formatted_address = f"{address.get('house_number', '')} {address.get('road', '')}, {address.get('country', '')} {address.get('postcode', '')}"
-    return formatted_address
-
-@app.get("/vcard", response_class=Response)
-def vcard_qr(first_name: str, last_name: str, organisation: str, title: str, email: str, phone: str, street: str, city: str, state: str, country: str, postal: str, website: str, color: str = '#7A663C', logourl: str = 'https://www.sgcarmart.com/_next/image?url=https%3A%2F%2Fi.i-sgcm.com%2Fnews%2Farticle_news%2F2020%2F22464_3_l.jpg&w=1920&q=75'):
-    # Generate vCard data manually
-    vcard_data = f'BEGIN:VCARD\nVERSION:3.0\nN:{last_name};{first_name}\nFN:{first_name} {last_name}\nORG:{organisation}\nTITLE:{title}\nEMAIL:{email}\nTEL;TYPE=cell:{phone}\nADR;TYPE=Work:;;{street};{city};{state};{postal};{country}\nURL:{website}\nEND:VCARD'
-
-    # Open QR code image
-    qr_image = Image.open(generate_qr(vcard_data, color)).convert('RGBA')  # Convert QR code to RGBA mode
-
-    # Call the overlay_qr_code function with the desired percentage
-    qr_image = overlay_qr_code(qr_image, fetch_logo(logourl), percentageOfQrCode)
     
-    # Save result
-    return save_result(qr_image)
+    return formatted_address
 
 ##### Functions and Variables #####
 def generate_qr(data: str, color: str = '#000000'):
