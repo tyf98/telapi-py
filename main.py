@@ -5,14 +5,15 @@ import requests
 from PIL import Image
 import segno
 import logging
-from fastapi.responses import JSONResponse
 from staticmap import StaticMap, CircleMarker
 from geopy.geocoders import Nominatim
 
 app = FastAPI()
 
+defaultLogo = "https://lh3.googleusercontent.com/u/0/drive-viewer/AKGpiha9Xx-7QMwN6lO2vUbnR7m4PZLu9gzvZ_wQBHZ6txL3ED2E0vY6MFvZKTlYH3JpqGriMsvZOcZl7-AwJxIsl7cP-jzUkg=w2864-h1430-v0"
+
 @app.get("/", response_class=Response)
-def qrdemo(color: str = '#7A663C', logourl: str = "https://i0.wp.com/godofwealth.co/wp-content/uploads/2023/10/happy-chinese-new-year-2024-thumb.jpg", percentageOfQrCode: float=0.3):
+def qrdemo(color: str = '#7A663C', logourl: str = defaultLogo, percentageOfQrCode: float=0.7):
     # Open QR code image
     qr_image = Image.open(generate_qr('Hello World!', color)).convert('RGBA')  # Convert QR code to RGBA mode
 
@@ -23,7 +24,12 @@ def qrdemo(color: str = '#7A663C', logourl: str = "https://i0.wp.com/godofwealth
     return save_result(qr_image)
 
 @app.get("/qrcode", response_class=Response)
-def qrcode(data:str, color: str = '#7A663C', logourl: str ='https://www.sgcarmart.com/_next/image?url=https%3A%2F%2Fi.i-sgcm.com%2Fnews%2Farticle_news%2F2020%2F22464_3_l.jpg&w=1920&q=75', percentageOfQrCode: float=0.3):
+def qrcode(data:str, color: str = '#7A663C', logourl: str = defaultLogo, percentageOfQrCode: float=0.3):
+
+    # Check if logourl is default
+    if logourl == defaultLogo:
+        percentageOfQrCode = 0.50
+
     # Open QR code image
     qr_image = Image.open(generate_qr(data, color)).convert('RGBA')  # Convert QR code to RGBA mode
 
@@ -33,8 +39,8 @@ def qrcode(data:str, color: str = '#7A663C', logourl: str ='https://www.sgcarmar
     # Save result
     return save_result(qr_image)
 
-@app.get("/generate_map")
-def generate_map(deviceLat: float, deviceLon: float):
+@app.get("/staticmap")
+def staticMap(deviceLat: float, deviceLon: float):
     # Create a new static map
     m = StaticMap(400, 400)
 
