@@ -118,7 +118,7 @@ def overlay_qr_code(qr_image, overlay_image, percentageOfQrCode, scdLabel=None):
         text_y = position[1] + overlay_height - int(0.27 * overlay_height)
 
         # Apply text overlay
-        draw.text((text_x, text_y), scdLabel, fill="#7A663C", font=font)
+        draw.text((text_x, text_y), scdLabel, fill="#E32614", font=font)
         
 
     # Return the modified qr_image
