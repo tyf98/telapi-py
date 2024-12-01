@@ -10,10 +10,10 @@ from geopy.geocoders import Nominatim
 
 app = FastAPI()
 
-defaultLogo = "https://i.ibb.co/WPQSS4d/Corp-Rectangular.png"
+defaultLogo = "https://i.ibb.co/6stFKBY/Corp-Circular.png"
 
 @app.get("/", response_class=Response)
-def qrdemo(color: str = '#7A663C', logourl: str = defaultLogo, percentageOfQrCode: float=0.7):
+def qrdemo(color: str = '#7A663C', logourl: str = defaultLogo, percentageOfQrCode: float=0.3):
     # Open QR code image
     qr_image = Image.open(generate_qr('Hello World!', color)).convert('RGBA')  # Convert QR code to RGBA mode
 
@@ -24,17 +24,13 @@ def qrdemo(color: str = '#7A663C', logourl: str = defaultLogo, percentageOfQrCod
     return save_result(qr_image)
 
 @app.get("/qrcode", response_class=Response)
-def qrcode(data:str, color: str = '#7A663C', logourl: str = defaultLogo, percentageOfQrCode: float=0.3, scdLabel: str | None = None):
-
-    # Check if logourl is default
-    if logourl == defaultLogo:
-        percentageOfQrCode = 0.50
+def qrcode(data:str, color: str = '#7A663C', logourl: str = defaultLogo, percentageOfQrCode: float=0.3, textLabel: str | None = None, fontSize: int | None = None):
 
     # Open QR code image
     qr_image = Image.open(generate_qr(data, color)).convert('RGBA')  # Convert QR code to RGBA mode
 
     # Call the overlay_qr_code function with the desired percentage
-    qr_image = overlay_qr_code(qr_image, fetch_logo(logourl), percentageOfQrCode, scdLabel)
+    qr_image = overlay_qr_code(qr_image, fetch_logo(logourl), percentageOfQrCode, textLabel, fontSize)
 
     # Save result
     return save_result(qr_image)
@@ -75,51 +71,50 @@ def generate_qr(data: str, color: str = '#000000'):
     qr_buffer.seek(0)
     return qr_buffer
 
-def overlay_qr_code(qr_image, overlay_image, percentageOfQrCode, scdLabel=None):
+def overlay_qr_code(qr_image, overlay_image, percentageOfQrCode, textLabel=None, fontSize=30):
     # Check if overlay_image is not None
     if overlay_image is None:
         logging.error("Overlay image is not available")
         return qr_image  # Return the original qr_image without overlay
         
     # Calculate size for overlay image (maintain aspect ratio)
-    qr_code_size_without_border = qr_image.width - 4 * 2 * 32  # Subtract the size of the quiet zone
-    overlay_size = int(qr_code_size_without_border * percentageOfQrCode)  # Change this line
-    overlay_width = int(overlay_image.width * overlay_size / min(overlay_image.size))
-    overlay_height = int(overlay_image.height * overlay_size / min(overlay_image.size))
+    qr_code_size_without_border = ((qr_image.width // 25) * 24)  # Subtract the size of the quiet zone
+    overlay_size = int(qr_code_size_without_border * percentageOfQrCode)
+    overlay_width = int(overlay_image.width * overlay_size / overlay_image.height)
+    overlay_height = int(overlay_image.height * overlay_size / overlay_image.width)
     overlay_image = overlay_image.resize((overlay_width, overlay_height))
 
     # Calculate position for overlay image (centered)
     position = ((qr_image.width - overlay_width) // 2, (qr_image.height - overlay_height) // 2)
 
-    # Overlay image on QR code
-    qr_image.paste(overlay_image, position, overlay_image)  # Use overlay_image as mask for transparency
-
-    if scdLabel is not None:
-        logging.info("SCD Label is not none.")
+    if textLabel is not None:
+        logging.info("Text Label is not none.")
         
         # Create ImageDraw object
-        draw = ImageDraw.Draw(qr_image)
+        draw = ImageDraw.Draw(overlay_image)
 
         # Specify font-size and type
-        font_size = 30
-        font = ImageFont.truetype("./arialbd.ttf", font_size)
-
-        # Calculate width and height of the text to center it
-        text_length = draw.textlength(scdLabel, font)
-
-        # If the text is too wide for the overlay image, decrease the font size until it fits
-        while text_length > overlay_width/2:
-            font_size -= 1
-            font = ImageFont.truetype("./arialbd.ttf", font_size)
-            text_length = draw.textlength(scdLabel, font)
-
-        # Calculate position for the text (centered horizontally, 10% from the bottom vertically)
-        text_x = (qr_image.width - text_length) // 2
-        text_y = position[1] + overlay_height - int(0.27 * overlay_height)
-
-        # Apply text overlay
-        draw.text((text_x, text_y), scdLabel, fill="#E32614", font=font)
+        # font_size = 30
+        font = ImageFont.truetype("./arialbd.ttf", fontSize)
         
+        # Get the bounding box of the entire text block
+        bbox = draw.textbbox((0, 0), textLabel, font=font)
+
+        # The height is the difference between the bottom and top of the bounding box
+        height = bbox[3] - bbox[1]
+        width = bbox[2]
+        print(f'Bbox values: {bbox}')
+        print(f'Overlay Image Height: {overlay_image.height}')
+        print(f'Overlay Image Width: {overlay_image.width}')
+        print(f'Bbox Height: {height}')
+        print(f'Text length: {width}')
+        print(f'Text X-Axis: {(overlay_image.width-width)//2}')
+        print(f'Text Y-Axis: {(overlay_image.height-height)//2}')
+        
+        draw.multiline_text(xy=((overlay_image.width-width)/2, (overlay_image.height-height)/2), text=textLabel, font=font, align="center", fill="#E32614")
+        
+    # Overlay image on QR code
+    qr_image.paste(overlay_image, position, overlay_image)  # Use overlay_image as mask for transparency
 
     # Return the modified qr_image
     return qr_image
