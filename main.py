@@ -1,4 +1,5 @@
-from fastapi import FastAPI, Response
+from fastapi import FastAPI, Response, File, Form, UploadFile, HTTPException, Body
+from fastapi.responses import JSONResponse
 from starlette.responses import StreamingResponse
 from io import BytesIO
 import requests
@@ -7,10 +8,38 @@ import segno
 import logging
 from staticmap import StaticMap, CircleMarker
 from geopy.geocoders import Nominatim
+import xml.etree.ElementTree as ET
+from pydantic import BaseModel
+from shapely.geometry import Polygon
+from typing import Optional
+import fitz  # PyMuPDF
+import hashlib
+import io
+import datetime
+import base64
 
 app = FastAPI()
 
 defaultLogo = "https://i.ibb.co/6stFKBY/Corp-Circular.png"
+
+class PolygonData(BaseModel): 
+    xml_data: str
+
+@app.get("/polygon") 
+async def process_polygon(xml_data: str):
+    root = ET.fromstring(xml_data) 
+    coordinates = root.find('.//coordinates').text.strip().split() 
+    coords = [(float(coord.split(',')[0]), float(coord.split(',')[1])) for coord in coordinates]
+    
+    # Create a polygon using shapely 
+    polygon = Polygon(coords)
+    
+    map = StaticMap(800, 600) 
+    for coord in polygon.exterior.coords: 
+        marker = CircleMarker((coord[1], coord[0]), 'red', 12) 
+        map.add_marker(marker)
+    image = map.render()
+    return save_result(image)
 
 @app.get("/", response_class=Response)
 def qrdemo(color: str = '#7A663C', logourl: str = defaultLogo, percentageOfQrCode: float=0.3):
@@ -103,13 +132,6 @@ def overlay_qr_code(qr_image, overlay_image, percentageOfQrCode, textLabel=None,
         # The height is the difference between the bottom and top of the bounding box
         height = bbox[3] - bbox[1]
         width = bbox[2]
-        print(f'Bbox values: {bbox}')
-        print(f'Overlay Image Height: {overlay_image.height}')
-        print(f'Overlay Image Width: {overlay_image.width}')
-        print(f'Bbox Height: {height}')
-        print(f'Text length: {width}')
-        print(f'Text X-Axis: {(overlay_image.width-width)//2}')
-        print(f'Text Y-Axis: {(overlay_image.height-height)//2}')
         
         draw.multiline_text(xy=((overlay_image.width-width)/2, (overlay_image.height-height)/2), text=textLabel, font=font, align="center", fill="#E32614")
         
@@ -143,3 +165,173 @@ def save_result(qr_image: Image):
     result_buffer.seek(0)
 
     return StreamingResponse(result_buffer, media_type="image/png")
+
+async def add_signature_page(
+    pdf_content: bytes,
+    name: str,
+    timestamp: str
+) -> bytes:
+    """
+    Add a signature page to the PDF and return the modified content.
+    """
+    try:
+        # Load PDF from memory
+        memory_pdf = io.BytesIO(pdf_content)
+        doc = fitz.open(stream=memory_pdf, filetype="pdf")
+        
+        # Add new page
+        page = doc.new_page(width=595, height=842)  # A4 size
+        
+        # Define text properties
+        font_size = 12
+        title_font_size = 16
+        page_width = page.rect.width
+        
+        # Function to center text
+        def get_centered_position(text: str, font_size: int) -> float:
+            # Create a temporary text span to measure
+            text_span = fitz.get_text_length(text, fontname="helv", fontsize=font_size)
+            return (page_width - text_span) / 2
+        
+        # Add signature content
+        title_text = "Signature Page"
+        name_text = f"Name: {name}"
+        timestamp_text = f"Timestamp: {timestamp}"
+        
+        # Insert centered text
+        page.insert_text(
+            point=(get_centered_position(title_text, title_font_size), 50),
+            text=title_text,
+            fontname="helv",
+            fontsize=title_font_size
+        )
+        
+        page.insert_text(
+            point=(get_centered_position(name_text, font_size), 90),
+            text=name_text,
+            fontname="helv",
+            fontsize=font_size
+        )
+        
+        page.insert_text(
+            point=(get_centered_position(timestamp_text, font_size), 120),
+            text=timestamp_text,
+            fontname="helv",
+            fontsize=font_size
+        )
+        
+        # Save the modified PDF to bytes
+        output_buffer = io.BytesIO()
+        doc.save(output_buffer)
+        doc.close()
+        
+        return output_buffer.getvalue()
+        
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Error processing PDF: {str(e)}"
+        )
+
+def compute_md5(content: bytes) -> str:
+    """
+    Compute MD5 hash of the given content.
+    """
+    return hashlib.md5(content).hexdigest()
+
+# Original multipart/form-data endpoint
+@app.post("/process-pdf/", response_class=JSONResponse)
+async def process_pdf(
+    pdf_file: UploadFile = File(...),
+    name: str = Form(...),
+    timestamp: Optional[str] = Form(None)
+):
+    """
+    Process a PDF file by adding a signature page and computing its MD5 hash.
+    """
+    try:
+        # Validate file type
+        if not pdf_file.content_type == "application/pdf":
+            raise HTTPException(
+                status_code=400,
+                detail="Only PDF files are accepted"
+            )
+        
+        content = await pdf_file.read()
+        actual_timestamp = timestamp or datetime.datetime.now().strftime(
+            "%Y-%m-%d %H:%M:%S"
+        )
+        
+        modified_pdf = await add_signature_page(content, name, actual_timestamp)
+        md5_hash = compute_md5(modified_pdf)
+        
+        return JSONResponse(
+            content={
+                "md5_hash": md5_hash,
+                "pdf_content": base64.b64encode(modified_pdf).decode('utf-8')
+            }
+        )
+        
+    except HTTPException as he:
+        raise he
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"An error occurred: {str(e)}"
+        )
+
+# New endpoint for Power Automate
+@app.post("/process-pdf-base64/", response_class=JSONResponse)
+async def process_pdf_base64(
+    request_data: dict = Body(...)
+):
+    """
+    Process a PDF file (base64 encoded) by adding a signature page and computing its MD5 hash.
+    Designed for Power Automate integration.
+    """
+    try:
+        # Extract fields from request body
+        if 'pdf_content' not in request_data or 'name' not in request_data:
+            raise HTTPException(
+                status_code=400,
+                detail="Missing required fields: pdf_content and name are required"
+            )
+            
+        # Decode base64 PDF content
+        try:
+            pdf_content = base64.b64decode(request_data['pdf_content'])
+        except:
+            raise HTTPException(
+                status_code=400,
+                detail="Invalid base64 PDF content"
+            )
+            
+        name = request_data['name']
+        timestamp = request_data.get('timestamp') or datetime.datetime.now().strftime(
+            "%Y-%m-%d %H:%M:%S"
+        )
+        
+        modified_pdf = await add_signature_page(pdf_content, name, timestamp)
+        md5_hash = compute_md5(modified_pdf)
+        
+        return JSONResponse(
+            content={
+                "md5_hash": md5_hash,
+                "pdf_content": base64.b64encode(modified_pdf).decode('utf-8')
+            }
+        )
+        
+    except HTTPException as he:
+        raise he
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"An error occurred: {str(e)}"
+        )
+
+@app.get("/health")
+async def health_check():
+    """
+    Simple health check endpoint.
+    """
+    return {"status": "healthy"}
