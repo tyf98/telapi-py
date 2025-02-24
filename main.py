@@ -1,4 +1,4 @@
-from fastapi import FastAPI, Response, File, Form, UploadFile, HTTPException, Body
+from fastapi import FastAPI, Response, File, Form, HTTPException, Body
 from fastapi.responses import JSONResponse
 from starlette.responses import StreamingResponse
 from io import BytesIO
@@ -239,46 +239,6 @@ def compute_md5(content: bytes) -> str:
     """
     return hashlib.md5(content).hexdigest()
 
-# Original multipart/form-data endpoint
-@app.post("/process-pdf/", response_class=JSONResponse)
-async def process_pdf(
-    pdf_file: UploadFile = File(...),
-    name: str = Form(...),
-    timestamp: Optional[str] = Form(None)
-):
-    """
-    Process a PDF file by adding a signature page and computing its MD5 hash.
-    """
-    try:
-        # Validate file type
-        if not pdf_file.content_type == "application/pdf":
-            raise HTTPException(
-                status_code=400,
-                detail="Only PDF files are accepted"
-            )
-        
-        content = await pdf_file.read()
-        actual_timestamp = timestamp or datetime.datetime.now().strftime(
-            "%Y-%m-%d %H:%M:%S"
-        )
-        
-        modified_pdf = await add_signature_page(content, name, actual_timestamp)
-        md5_hash = compute_md5(modified_pdf)
-        
-        return JSONResponse(
-            content={
-                "md5_hash": md5_hash,
-                "pdf_content": base64.b64encode(modified_pdf).decode('utf-8')
-            }
-        )
-        
-    except HTTPException as he:
-        raise he
-    except Exception as e:
-        raise HTTPException(
-            status_code=500,
-            detail=f"An error occurred: {str(e)}"
-        )
 
 # New endpoint for Power Automate
 @app.post("/process-pdf-base64/", response_class=JSONResponse)
