@@ -1,4 +1,4 @@
-from fastapi import FastAPI, Response, File, UploadFile, Form, HTTPException, Body
+from fastapi import FastAPI, Response, HTTPException
 from fastapi.responses import JSONResponse
 from starlette.responses import StreamingResponse
 from io import BytesIO
@@ -168,38 +168,49 @@ def save_result(qr_image: Image):
 
     return StreamingResponse(result_buffer, media_type="image/png")
 
+class PDFRequest(BaseModel):
+    file_name: str
+    file_content: str  # Base64 string
+    name: str
+    timestamp: str  # ISO 8601 format
+
+def add_signature_page(pdf_bytes: bytes, name: str, timestamp: str) -> bytes:
+    """Add a signature page with name and timestamp to the given PDF."""
+    pdf_document = fitz.open(stream=pdf_bytes, filetype="pdf")
+    
+    # Create a new blank page at the end
+    pdf_document.insert_page(-1, text=f"Signed by: {name}\nDate: {timestamp}")
+    
+    # Save modified PDF to bytes
+    output_stream = BytesIO()
+    pdf_document.save(output_stream)
+    pdf_document.close()
+    
+    return output_stream.getvalue()
+
+def compute_md5_hash(pdf_bytes: bytes) -> str:
+    """Compute MD5 hash of the given PDF bytes."""
+    return hashlib.md5(pdf_bytes).hexdigest()
+
 @app.post("/process-pdf/")
-async def process_pdf(
-    file: UploadFile = File(...),
-    name: str = Form(...),
-    timestamp: str = Form(...)
-):
+async def process_pdf(request: PDFRequest):
     try:
-        # Read the uploaded PDF file
-        pdf_bytes = await file.read()
-        pdf_doc = fitz.open(stream=pdf_bytes, filetype="pdf")
+        # Decode Base64 PDF file
+        pdf_bytes = base64.b64decode(request.file_content)
 
-        # Create a new blank page and insert text
-        page = pdf_doc.new_page()
-        text = f"Signed by: {name}\nTimestamp: {timestamp}"
-        page.insert_text((50, 100), text, fontsize=12)
+        # Modify PDF (add signature page)
+        modified_pdf = add_signature_page(pdf_bytes, request.name, request.timestamp)
 
-        # Save modified PDF to a buffer
-        pdf_buffer = io.BytesIO()
-        pdf_doc.save(pdf_buffer)
-        pdf_doc.close()
+        # Compute MD5 hash
+        pdf_hash = compute_md5_hash(modified_pdf)
 
-        # Compute MD5 hash of the modified PDF
-        pdf_buffer.seek(0)
-        md5_hash = hashlib.md5(pdf_buffer.read()).hexdigest()
+        # Encode modified PDF to Base64 for response
+        modified_pdf_base64 = base64.b64encode(modified_pdf).decode("utf-8")
 
-        # Prepare response for Power Automate
-        return JSONResponse(
-            content={
-                "md5_hash": md5_hash,
-                "pdf_file": pdf_buffer.getvalue().hex()  # Hex encode for transmission
-            }
-        )
-
+        return JSONResponse(content={
+            "md5_hash": pdf_hash,
+            "modified_pdf": modified_pdf_base64
+        })
+    
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Error processing PDF: {str(e)}")
+        raise HTTPException(status_code=400, detail=f"Error processing PDF: {str(e)}")
