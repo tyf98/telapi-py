@@ -198,22 +198,25 @@ async def add_signature_page(
         name_text = f"Name: {name}"
         timestamp_text = f"Timestamp: {timestamp}"
         
-        # Insert centered text
-        page.insert_text(
+        # Get the last page (our newly added page)
+        last_page = doc[-1]
+        
+        # Insert centered text on the signature page
+        last_page.insert_text(
             point=(get_centered_position(title_text, title_font_size), 50),
             text=title_text,
             fontname="helv",
             fontsize=title_font_size
         )
         
-        page.insert_text(
+        last_page.insert_text(
             point=(get_centered_position(name_text, font_size), 90),
             text=name_text,
             fontname="helv",
             fontsize=font_size
         )
         
-        page.insert_text(
+        last_page.insert_text(
             point=(get_centered_position(timestamp_text, font_size), 120),
             text=timestamp_text,
             fontname="helv",
@@ -238,6 +241,7 @@ def compute_md5(content: bytes) -> str:
     Compute MD5 hash of the given content.
     """
     return hashlib.md5(content).hexdigest()
+
 
 
 # New endpoint for Power Automate
@@ -270,6 +274,20 @@ async def process_pdf_base64(
         timestamp = request_data.get('timestamp') or datetime.datetime.now().strftime(
             "%Y-%m-%d %H:%M:%S"
         )
+        
+        # Validate PDF content
+        try:
+            temp_pdf = io.BytesIO(pdf_content)
+            test_doc = fitz.open(stream=temp_pdf, filetype="pdf")
+            page_count = len(test_doc)
+            test_doc.close()
+            if page_count == 0:
+                raise ValueError("Invalid PDF: document has 0 pages")
+        except Exception as e:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Invalid PDF content: {str(e)}"
+            )
         
         modified_pdf = await add_signature_page(pdf_content, name, timestamp)
         md5_hash = compute_md5(modified_pdf)
