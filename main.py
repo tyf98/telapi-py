@@ -1,4 +1,4 @@
-from fastapi import FastAPI, Response, File, Form, HTTPException, Body
+from fastapi import FastAPI, Response, File, UploadFile, Form, HTTPException, Body
 from fastapi.responses import JSONResponse
 from starlette.responses import StreamingResponse
 from io import BytesIO
@@ -11,7 +11,6 @@ from geopy.geocoders import Nominatim
 import xml.etree.ElementTree as ET
 from pydantic import BaseModel
 from shapely.geometry import Polygon
-from typing import Optional
 import fitz  # PyMuPDF
 import hashlib
 import io
@@ -169,184 +168,38 @@ def save_result(qr_image: Image):
 
     return StreamingResponse(result_buffer, media_type="image/png")
 
-async def add_signature_page(
-    pdf_content: bytes,
-    name: str,
-    timestamp: str
-) -> bytes:
-    """
-    Add a signature page to the PDF and return the modified content.
-    """
-    try:
-        # Create a new PDF document for the signature page
-        signature_doc = fitz.open()
-        signature_page = signature_doc.new_page(width=595, height=842)  # A4 size
-        
-        # Define text properties
-        font_size = 12
-        title_font_size = 16
-        page_width = signature_page.rect.width
-        
-        # Function to center text
-        def get_centered_position(text: str, font_size: int) -> float:
-            text_span = fitz.get_text_length(text, fontname="helv", fontsize=font_size)
-            return (page_width - text_span) / 2
-        
-        # Add signature content
-        title_text = "Signature Page"
-        name_text = f"Name: {name}"
-        timestamp_text = f"Timestamp: {timestamp}"
-        
-        # Insert centered text on the signature page
-        signature_page.insert_text(
-            point=(get_centered_position(title_text, title_font_size), 50),
-            text=title_text,
-            fontname="helv",
-            fontsize=title_font_size
-        )
-        
-        signature_page.insert_text(
-            point=(get_centered_position(name_text, font_size), 90),
-            text=name_text,
-            fontname="helv",
-            fontsize=font_size
-        )
-        
-        signature_page.insert_text(
-            point=(get_centered_position(timestamp_text, font_size), 120),
-            text=timestamp_text,
-            fontname="helv",
-            fontsize=font_size
-        )
-        
-        # Load original PDF
-        original_pdf = io.BytesIO(pdf_content)
-        original_doc = fitz.open(stream=original_pdf, filetype="pdf")
-        
-        logger.info(f"Original PDF has {len(original_doc)} pages")
-        
-        # Create a new document to combine both
-        result_doc = fitz.open()
-        
-        # Copy all pages from original document
-        result_doc.insert_pdf(original_doc)
-        
-        # Copy the signature page
-        result_doc.insert_pdf(signature_doc)
-        
-        logger.info(f"Final PDF has {len(result_doc)} pages")
-        
-        # Save the modified PDF to bytes
-        output_buffer = io.BytesIO()
-        result_doc.save(output_buffer, garbage=4, deflate=True, clean=True)
-        
-        # Close all documents
-        signature_doc.close()
-        original_doc.close()
-        result_doc.close()
-        
-        return output_buffer.getvalue()
-        
-    except Exception as e:
-        logger.error(f"Error in add_signature_page: {str(e)}")
-        raise HTTPException(
-            status_code=500,
-            detail=f"Error processing PDF: {str(e)}"
-        )
-
-def compute_md5(content: bytes) -> str:
-    """
-    Compute MD5 hash of the given content.
-    """
-    return hashlib.md5(content).hexdigest()
-
-# New endpoint for Power Automate
-@app.post("/process-pdf-base64/", response_class=JSONResponse)
-async def process_pdf_base64(
-    request_data: dict = Body(...)
+@app.post("/process-pdf/")
+async def process_pdf(
+    file: UploadFile = File(...),
+    name: str = Form(...),
+    timestamp: str = Form(...)
 ):
-    """
-    Process a PDF file (base64 encoded) by adding a signature page and computing its MD5 hash.
-    Designed for Power Automate integration.
-    """
     try:
-        # Extract fields from request body
-        if 'pdf_content' not in request_data or 'name' not in request_data:
-            raise HTTPException(
-                status_code=400,
-                detail="Missing required fields: pdf_content and name are required"
-            )
-            
-        # Decode base64 PDF content
-        try:
-            pdf_content = base64.b64decode(request_data['pdf_content'])
-            logger.info(f"Decoded PDF size: {len(pdf_content)} bytes")
-        except Exception as e:
-            logger.error(f"Base64 decode error: {str(e)}")
-            raise HTTPException(
-                status_code=400,
-                detail="Invalid base64 PDF content"
-            )
-            
-        name = request_data['name']
-        timestamp = request_data.get('timestamp') or datetime.datetime.now().strftime(
-            "%Y-%m-%d %H:%M:%S"
-        )
-        
-        # Validate PDF content
-        try:
-            temp_pdf = io.BytesIO(pdf_content)
-            test_doc = fitz.open(stream=temp_pdf, filetype="pdf")
-            page_count = len(test_doc)
-            logger.info(f"Input PDF validated with {page_count} pages")
-            test_doc.close()
-            if page_count == 0:
-                raise ValueError("Invalid PDF: document has 0 pages")
-        except Exception as e:
-            logger.error(f"PDF validation error: {str(e)}")
-            raise HTTPException(
-                status_code=400,
-                detail=f"Invalid PDF content: {str(e)}"
-            )
-        
-        modified_pdf = await add_signature_page(pdf_content, name, timestamp)
-        logger.info(f"Modified PDF size: {len(modified_pdf)} bytes")
-        
-        md5_hash = compute_md5(modified_pdf)
-        
-        # Validate the modified PDF
-        try:
-            temp_modified = io.BytesIO(modified_pdf)
-            modified_doc = fitz.open(stream=temp_modified, filetype="pdf")
-            modified_page_count = len(modified_doc)
-            logger.info(f"Modified PDF validated with {modified_page_count} pages")
-            modified_doc.close()
-            if modified_page_count != page_count + 1:
-                logger.warning(f"Expected {page_count + 1} pages but got {modified_page_count}")
-        except Exception as e:
-            logger.error(f"Modified PDF validation error: {str(e)}")
-        
+        # Read the uploaded PDF file
+        pdf_bytes = await file.read()
+        pdf_doc = fitz.open(stream=pdf_bytes, filetype="pdf")
+
+        # Create a new blank page and insert text
+        page = pdf_doc.new_page()
+        text = f"Signed by: {name}\nTimestamp: {timestamp}"
+        page.insert_text((50, 100), text, fontsize=12)
+
+        # Save modified PDF to a buffer
+        pdf_buffer = io.BytesIO()
+        pdf_doc.save(pdf_buffer)
+        pdf_doc.close()
+
+        # Compute MD5 hash of the modified PDF
+        pdf_buffer.seek(0)
+        md5_hash = hashlib.md5(pdf_buffer.read()).hexdigest()
+
+        # Prepare response for Power Automate
         return JSONResponse(
             content={
                 "md5_hash": md5_hash,
-                "pdf_content": base64.b64encode(modified_pdf).decode('utf-8'),
-                "original_pages": page_count,
-                "modified_pages": page_count + 1
+                "pdf_file": pdf_buffer.getvalue().hex()  # Hex encode for transmission
             }
         )
-        
-    except HTTPException as he:
-        raise he
-    except Exception as e:
-        logger.error(f"Error in process_pdf_base64: {str(e)}")
-        raise HTTPException(
-            status_code=500,
-            detail=f"An error occurred: {str(e)}"
-        )
 
-@app.get("/health")
-async def health_check():
-    """
-    Simple health check endpoint.
-    """
-    return {"status": "healthy"}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error processing PDF: {str(e)}")
