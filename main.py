@@ -13,9 +13,11 @@ from pydantic import BaseModel
 from shapely.geometry import Polygon
 import fitz  # PyMuPDF
 import hashlib
-import io
-import datetime
 import base64
+from reportlab.pdfgen import canvas
+from reportlab.lib.pagesizes import letter
+from reportlab.pdfbase.ttfonts import TTFont
+from reportlab.pdfbase import pdfmetrics
 
 app = FastAPI()
 # Set up logging
@@ -177,10 +179,19 @@ class PDFRequest(BaseModel):
 def parse_signature(signature_str: str):
     """Extracts role, name, and timestamp from the signature string."""
     try:
-        role, name, timestamp = signature_str.rstrip(";").split(":")
+        signature_str = signature_str.strip().rstrip(";")  # Remove leading/trailing spaces and semicolon
+        parts = signature_str.split(":")
+        
+        if len(parts) < 3:
+            raise ValueError(f"Invalid signature format: {signature_str}")
+
+        role = parts[0].strip()  # "Prepared" or "Reviewed"
+        name = parts[1].strip()  # "Robert" or "Carrot"
+        timestamp = ":".join(parts[2:]).strip()  # Preserve full timestamp
+        
         return role, name, timestamp
-    except ValueError:
-        raise ValueError(f"Invalid signature format: {signature_str}")
+    except Exception as e:
+        raise ValueError(f"Error parsing signature: {e}")
 
 def add_signature_page(pdf_bytes: bytes, certified: str, approved: str) -> bytes:
     """Adds a signature page with formatted text."""
@@ -191,10 +202,10 @@ def add_signature_page(pdf_bytes: bytes, certified: str, approved: str) -> bytes
     role1, name1, timestamp1 = parse_signature(certified)
     role2, name2, timestamp2 = parse_signature(approved)
 
-    # Text Formatting
-    bold_font = "helv-bold"  # Helvetica Bold
-    italic_font = "times-italic"  # Times Italic
-    normal_font = "helv"  # Helvetica Regular
+    # Text Formatting - Use standard fonts
+    bold_font = "helvetica-bold"  # Use standard name
+    italic_font = "times-italic"
+    normal_font = "helvetica"  # Use standard name
     font_size_title = 14
     font_size_name = 18
     font_size_timestamp = 10
