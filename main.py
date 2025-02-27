@@ -178,9 +178,11 @@ def add_signature_page(pdf_bytes: bytes, name: str, timestamp: str) -> bytes:
     """Add a signature page with name and timestamp to the given PDF."""
     pdf_document = fitz.open(stream=pdf_bytes, filetype="pdf")
     
-    # Create a new blank page at the end
-    pdf_document.insert_page(-1, text=f"Signed by: {name}\nDate: {timestamp}")
-    
+    # Create a blank page and add text
+    page = pdf_document.new_page()
+    text = f"Signed by: {name}\nDate: {timestamp}"
+    page.insert_text((50, 100), text, fontsize=12)
+
     # Save modified PDF to bytes
     output_stream = BytesIO()
     pdf_document.save(output_stream)
