@@ -14,10 +14,6 @@ from shapely.geometry import Polygon
 import fitz  # PyMuPDF
 import hashlib
 import base64
-from reportlab.pdfgen import canvas
-from reportlab.lib.pagesizes import letter
-from reportlab.pdfbase.ttfonts import TTFont
-from reportlab.pdfbase import pdfmetrics
 
 app = FastAPI()
 # Set up logging
