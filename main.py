@@ -170,20 +170,54 @@ def save_result(qr_image: Image):
 
 class PDFRequest(BaseModel):
     file_name: str
-    file_content: str  # Base64 string
-    name: str
-    timestamp: str  # ISO 8601 format
+    file_content: str  # Base64-encoded PDF
+    certified: str  # Example: "Prepared:Robert:Feb 7, 2025 09:43;"
+    approved: str  # Example: "Reviewed:Carrot:Feb 7, 2025 09:52;"
 
-def add_signature_page(pdf_bytes: bytes, name: str, timestamp: str) -> bytes:
-    """Add a signature page with name and timestamp to the given PDF."""
+def parse_signature(signature_str: str):
+    """Extracts role, name, and timestamp from the signature string."""
+    try:
+        role, name, timestamp = signature_str.rstrip(";").split(":")
+        return role, name, timestamp
+    except ValueError:
+        raise ValueError(f"Invalid signature format: {signature_str}")
+
+def add_signature_page(pdf_bytes: bytes, certified: str, approved: str) -> bytes:
+    """Adds a signature page with formatted text."""
     pdf_document = fitz.open(stream=pdf_bytes, filetype="pdf")
-    
-    # Create a blank page and add text
     page = pdf_document.new_page()
-    text = f"Signed by: {name}\nDate: {timestamp}"
-    page.insert_text((50, 100), text, fontsize=12)
 
-    # Save modified PDF to bytes
+    # Parse the signature data
+    role1, name1, timestamp1 = parse_signature(certified)
+    role2, name2, timestamp2 = parse_signature(approved)
+
+    # Text Formatting
+    bold_font = "helv-bold"  # Helvetica Bold
+    italic_font = "times-italic"  # Times Italic
+    normal_font = "helv"  # Helvetica Regular
+    font_size_title = 14
+    font_size_name = 18
+    font_size_timestamp = 10
+
+    # Positioning
+    x_start = 50
+    y_start = 100
+    line_width = 400  # Width for the horizontal line
+
+    # Prepared By Section
+    page.insert_text((x_start, y_start), f"{role1} By:", fontsize=font_size_title, fontname=bold_font)
+    page.insert_text((x_start, y_start + 30), name1, fontsize=font_size_name, fontname=italic_font, color=(0, 0, 1))  # Blue color
+    page.draw_line((x_start, y_start + 50), (x_start + line_width, y_start + 50))  # Horizontal line
+    page.insert_text((x_start, y_start + 65), f"{name1} ({timestamp1} GMT +8)", fontsize=font_size_timestamp, fontname=normal_font)
+
+    # Reviewed By Section
+    y_start += 120
+    page.insert_text((x_start, y_start), f"{role2} By:", fontsize=font_size_title, fontname=bold_font)
+    page.insert_text((x_start, y_start + 30), name2, fontsize=font_size_name, fontname=italic_font, color=(0, 0, 1))  # Blue color
+    page.draw_line((x_start, y_start + 50), (x_start + line_width, y_start + 50))  # Horizontal line
+    page.insert_text((x_start, y_start + 65), f"{name2} ({timestamp2} GMT +8)", fontsize=font_size_timestamp, fontname=normal_font)
+
+    # Save PDF
     output_stream = BytesIO()
     pdf_document.save(output_stream)
     pdf_document.close()
@@ -201,7 +235,7 @@ async def process_pdf(request: PDFRequest):
         pdf_bytes = base64.b64decode(request.file_content)
 
         # Modify PDF (add signature page)
-        modified_pdf = add_signature_page(pdf_bytes, request.name, request.timestamp)
+        modified_pdf = add_signature_page(pdf_bytes, request.certified, request.approved)
 
         # Compute MD5 hash
         pdf_hash = compute_md5_hash(modified_pdf)
