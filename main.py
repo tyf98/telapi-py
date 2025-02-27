@@ -208,9 +208,10 @@ def add_signature_page(pdf_bytes: bytes, certified: str, approved: str) -> bytes
     bold_font = "helvetica-bold"  # Use standard name
     italic_font = "times-italic"
     normal_font = "helvetica"  # Use standard name
-    font_size_title = 14
-    font_size_name = 18
-    font_size_timestamp = 10
+    font_size_title = 16
+    font_size_name = 20
+    font_size_timestamp = 11
+    line_width = 200  # Shorter line for better alignment
 
     # Positioning
     page_width = page.rect.width
