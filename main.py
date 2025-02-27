@@ -172,32 +172,38 @@ class PDFRequest(BaseModel):
     certified: str  # Example: "Prepared:Robert:Feb 7, 2025 09:43;"
     approved: str  # Example: "Reviewed:Carrot:Feb 7, 2025 09:52;"
 
-def parse_signature(signature_str: str):
-    """Extracts role, name, and timestamp from the signature string."""
+def parse_signatures(signature_str: str):
+    """Extracts multiple role, name, and timestamp entries from the signature string."""
     try:
-        signature_str = signature_str.strip().rstrip(";")  # Remove leading/trailing spaces and semicolon
-        parts = signature_str.split(":")
-        
-        if len(parts) < 3:
-            raise ValueError(f"Invalid signature format: {signature_str}")
+        signature_str = signature_str.strip().rstrip(";")  # Remove trailing spaces and semicolon
+        signature_entries = signature_str.split(";")  # Split multiple entries
 
-        role = parts[0].strip()  # "Prepared" or "Reviewed"
-        name = parts[1].strip()  # "Robert" or "Carrot"
-        timestamp = ":".join(parts[2:]).strip()  # Preserve full timestamp
-        
-        return role, name, timestamp
+        parsed_signatures = []
+        for entry in signature_entries:
+            parts = entry.strip().split(":")
+            if len(parts) < 3:
+                raise ValueError(f"Invalid signature format: {entry}")
+            
+            role = parts[0].strip()  # "Prepared" or "Approved"
+            name = parts[1].strip()  # "Robert" or "Carrot"
+            timestamp = ":".join(parts[2:]).strip()  # Preserve full timestamp
+            
+            parsed_signatures.append((role, name, timestamp))
+
+        return parsed_signatures  # Returns a list of (role, name, timestamp) tuples
+
     except Exception as e:
-        raise ValueError(f"Error parsing signature: {e}")
+        raise ValueError(f"Error parsing signatures: {e}")
 
 def add_signature_page(pdf_bytes: bytes, certified: str, approved: str) -> bytes:
-    """Adds a signature page with formatted text."""
+    """Adds a signature page with multiple formatted signatures."""
     pdf_document = fitz.open(stream=pdf_bytes, filetype="pdf")
     page = pdf_document.new_page()
 
-    # Parse the signature data
-    role1, name1, timestamp1 = parse_signature(certified)
-    role2, name2, timestamp2 = parse_signature(approved)
-
+    # Parse multiple signatures
+    certified_signatures = parse_signatures(certified)  # List of (role, name, timestamp)
+    approved_signatures = parse_signatures(approved)
+    
     # Text Formatting - Use standard fonts
     bold_font = "helvetica-bold"  # Use standard name
     italic_font = "times-italic"
@@ -210,24 +216,43 @@ def add_signature_page(pdf_bytes: bytes, certified: str, approved: str) -> bytes
     x_start = 50
     y_start = 100
     line_width = 400  # Width for the horizontal line
+    section_spacing = 120  # Space between sections
+    column_spacing = 300  # Space between columns for multiple signatures
 
-    # Prepared By Section
-    page.insert_text((x_start, y_start), f"{role1} By:", fontsize=font_size_title, fontname=bold_font)
-    page.insert_text((x_start, y_start + 30), name1, fontsize=font_size_name, fontname=italic_font, color=(0, 0, 1))  # Blue color
-    page.draw_line((x_start, y_start + 50), (x_start + line_width, y_start + 50))  # Horizontal line
-    page.insert_text((x_start, y_start + 65), f"{name1} ({timestamp1} GMT +8)", fontsize=font_size_timestamp, fontname=normal_font)
+    # Function to draw a signature block
+    def draw_signature_block(x, y, role, name, timestamp):
+        """Draws a formatted signature block at (x, y) position."""
+        page.insert_text((x, y), f"{role} By:", fontsize=font_size_title, fontname=bold_font)
+        page.insert_text((x, y + 30), name, fontsize=font_size_name, fontname=italic_font, color=(0, 0, 1))  # Blue color
+        page.draw_line((x, y + 50), (x + line_width, y + 50))  # Horizontal line
+        page.insert_text((x, y + 65), f"{name} ({timestamp} GMT +8)", fontsize=font_size_timestamp, fontname=normal_font)
 
-    # Reviewed By Section
-    y_start += 120
-    page.insert_text((x_start, y_start), f"{role2} By:", fontsize=font_size_title, fontname=bold_font)
-    page.insert_text((x_start, y_start + 30), name2, fontsize=font_size_name, fontname=italic_font, color=(0, 0, 1))  # Blue color
-    page.draw_line((x_start, y_start + 50), (x_start + line_width, y_start + 50))  # Horizontal line
-    page.insert_text((x_start, y_start + 65), f"{name2} ({timestamp2} GMT +8)", fontsize=font_size_timestamp, fontname=normal_font)
+    # Draw "Prepared By" section
+    y_position = y_start
+    x_position = x_start
+    for role, name, timestamp in certified_signatures:
+        draw_signature_block(x_position, y_position, role, name, timestamp)
+        x_position += column_spacing  # Move to next column
+        if x_position > x_start + column_spacing:  # Wrap to new row if needed
+            x_position = x_start
+            y_position += section_spacing
+
+    # Draw "Approved By" section
+    y_position += section_spacing
+    x_position = x_start
+    for role, name, timestamp in approved_signatures:
+        draw_signature_block(x_position, y_position, role, name, timestamp)
+        x_position += column_spacing  # Move to next column
+        if x_position > x_start + column_spacing:  # Wrap to new row if needed
+            x_position = x_start
+            y_position += section_spacing
 
     # Save PDF
     output_stream = BytesIO()
     pdf_document.save(output_stream)
     pdf_document.close()
+
+    return output_stream.getvalue()
     
     return output_stream.getvalue()
 
