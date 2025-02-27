@@ -213,38 +213,43 @@ def add_signature_page(pdf_bytes: bytes, certified: str, approved: str) -> bytes
     font_size_timestamp = 10
 
     # Positioning
-    x_start = 50
+    page_width = page.rect.width
+    x_margin = 50
+    section_spacing = 100  # Space between sections
+    column_spacing = page_width / 2  # Two-column layout
     y_start = 100
-    line_width = 400  # Width for the horizontal line
-    section_spacing = 120  # Space between sections
-    column_spacing = 300  # Space between columns for multiple signatures
 
-    # Function to draw a signature block
     def draw_signature_block(x, y, role, name, timestamp):
-        """Draws a formatted signature block at (x, y) position."""
-        page.insert_text((x, y), f"{role} By:", fontsize=font_size_title, fontname=bold_font)
-        page.insert_text((x, y + 30), name, fontsize=font_size_name, fontname=italic_font, color=(0, 0, 1))  # Blue color
-        page.draw_line((x, y + 50), (x + line_width, y + 50))  # Horizontal line
-        page.insert_text((x, y + 65), f"{name} ({timestamp} GMT +8)", fontsize=font_size_timestamp, fontname=normal_font)
+        """Draws a formatted signature block at (x, y) position with proper alignment."""
+        # Center-align text
+        header_x = x + (line_width / 2) - 40
+        name_x = x + (line_width / 2) - 30
+        timestamp_x = x
+
+        # Draw elements
+        page.insert_text((header_x, y), f"{role} By:", fontsize=font_size_title, fontname=bold_font)
+        page.insert_text((name_x, y + 30), name, fontsize=font_size_name, fontname=italic_font, color=(0, 0, 1))  # Blue
+        page.draw_line((x, y + 55), (x + line_width, y + 55))  # Horizontal line
+        page.insert_text((timestamp_x, y + 70), f"{name} ({timestamp} GMT +8)", fontsize=font_size_timestamp, fontname=normal_font)
 
     # Draw "Prepared By" section
     y_position = y_start
-    x_position = x_start
+    x_position = x_margin
     for role, name, timestamp in certified_signatures:
         draw_signature_block(x_position, y_position, role, name, timestamp)
         x_position += column_spacing  # Move to next column
-        if x_position > x_start + column_spacing:  # Wrap to new row if needed
-            x_position = x_start
+        if x_position > page_width - x_margin:  # Wrap to new row if needed
+            x_position = x_margin
             y_position += section_spacing
 
     # Draw "Approved By" section
     y_position += section_spacing
-    x_position = x_start
+    x_position = x_margin
     for role, name, timestamp in approved_signatures:
         draw_signature_block(x_position, y_position, role, name, timestamp)
         x_position += column_spacing  # Move to next column
-        if x_position > x_start + column_spacing:  # Wrap to new row if needed
-            x_position = x_start
+        if x_position > page_width - x_margin:  # Wrap to new row if needed
+            x_position = x_margin
             y_position += section_spacing
 
     # Save PDF
@@ -252,8 +257,6 @@ def add_signature_page(pdf_bytes: bytes, certified: str, approved: str) -> bytes
     pdf_document.save(output_stream)
     pdf_document.close()
 
-    return output_stream.getvalue()
-    
     return output_stream.getvalue()
 
 def compute_md5_hash(pdf_bytes: bytes) -> str:
