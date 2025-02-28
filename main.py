@@ -197,21 +197,6 @@ def parse_signatures(signature_str: str):
     except Exception as e:
         raise ValueError(f"Error parsing signatures: {e}")
 
-def fetch_and_resize_image(url, size=(80, 80)):
-    """Fetches an image from URL, resizes it, and converts it to bytes."""
-    try:
-        response = requests.get(url, timeout=5)
-        if response.status_code != 200:
-            return None
-        img = Image.open(BytesIO(response.content))
-        img = img.convert("RGB")
-        img.thumbnail(size)  
-        img_byte_arr = BytesIO()
-        img.save(img_byte_arr, format="PNG")
-        return img_byte_arr.getvalue()
-    except Exception:
-        return None  
-
 def add_signature_page(pdf_bytes: bytes, certified: str, approved: str, logo_url_1: str, logo_url_2: str) -> bytes:
     """Adds a signature page with optional logos to the PDF."""
     pdf_document = fitz.open(stream=pdf_bytes, filetype="pdf")
@@ -233,9 +218,9 @@ def add_signature_page(pdf_bytes: bytes, certified: str, approved: str, logo_url
     # Positioning
     page_width, page_height = page.rect.width, page.rect.height
     x_margin = 50
-    section_spacing = 100  
-    column_spacing = page_width / 2  
-    y_start = 150  
+    section_spacing = 100
+    column_spacing = page_width / 2
+    y_start = 150
 
     def draw_signature_block(x, y, role, name, timestamp):
         """Draws a formatted signature block at (x, y) position with proper alignment."""
@@ -244,14 +229,29 @@ def add_signature_page(pdf_bytes: bytes, certified: str, approved: str, logo_url
         timestamp_x = x
 
         page.insert_text((header_x, y), f"{role} By:", fontsize=font_size_title, fontname=bold_font)
-        page.insert_text((name_x, y + 30), name, fontsize=font_size_name, fontname=italic_font, color=(0, 0, 1))  
-        page.draw_line((x, y + 55), (x + line_width, y + 55))  
+        page.insert_text((name_x, y + 30), name, fontsize=font_size_name, fontname=italic_font, color=(0, 0, 1))
+        page.draw_line((x, y + 55), (x + line_width, y + 55))
         page.insert_text((timestamp_x, y + 70), f"{name} ({timestamp} GMT +8)", fontsize=font_size_timestamp, fontname=normal_font)
+
+    def fetch_and_resize_image(url, size=(80, 80)):
+        """Fetches an image from URL, resizes it, and converts it to bytes while preserving transparency."""
+        try:
+            response = requests.get(url, timeout=5)
+            if response.status_code != 200:
+                return None
+            img = Image.open(BytesIO(response.content))
+            img = img.convert("RGBA")  # Preserve transparency
+            img.thumbnail(size)
+            img_byte_arr = BytesIO()
+            img.save(img_byte_arr, format="PNG")
+            return img_byte_arr.getvalue()
+        except Exception:
+            return None
 
     def embed_image(image_bytes, x, y):
         """Embeds an image at a specific (x, y) location on the PDF page."""
         if image_bytes:
-            image_rect = fitz.Rect(x, y, x + 80, y + 80)  
+            image_rect = fitz.Rect(x, y, x + 80, y + 80)
             page.insert_image(image_rect, stream=image_bytes)
 
     # Embed Logos (if valid)
@@ -266,8 +266,8 @@ def add_signature_page(pdf_bytes: bytes, certified: str, approved: str, logo_url
     x_position = x_margin
     for role, name, timestamp in certified_signatures:
         draw_signature_block(x_position, y_position, role, name, timestamp)
-        x_position += column_spacing  
-        if x_position > page_width - x_margin:  
+        x_position += column_spacing
+        if x_position > page_width - x_margin:
             x_position = x_margin
             y_position += section_spacing
 
@@ -276,8 +276,8 @@ def add_signature_page(pdf_bytes: bytes, certified: str, approved: str, logo_url
     x_position = x_margin
     for role, name, timestamp in approved_signatures:
         draw_signature_block(x_position, y_position, role, name, timestamp)
-        x_position += column_spacing  
-        if x_position > page_width - x_margin:  
+        x_position += column_spacing
+        if x_position > page_width - x_margin:
             x_position = x_margin
             y_position += section_spacing
 
@@ -295,22 +295,14 @@ def compute_md5_hash(pdf_bytes: bytes) -> str:
 @app.post("/process-pdf/")
 async def process_pdf(request: PDFRequest):
     try:
-        # Decode Base64 PDF file
         pdf_bytes = base64.b64decode(request.file_content)
-
-        # Modify PDF (add signature page)
         modified_pdf = add_signature_page(pdf_bytes, request.certified, request.approved, request.logo_url_1, request.logo_url_2)
-
-        # Compute MD5 hash
         pdf_hash = compute_md5_hash(modified_pdf)
-
-        # Encode modified PDF to Base64 for response
         modified_pdf_base64 = base64.b64encode(modified_pdf).decode("utf-8")
 
         return JSONResponse(content={
             "md5_hash": pdf_hash,
             "modified_pdf": modified_pdf_base64
         })
-    
     except Exception as e:
         raise HTTPException(status_code=400, detail=f"Error processing PDF: {str(e)}")
