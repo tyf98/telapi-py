@@ -169,7 +169,7 @@ def save_result(qr_image: Image):
 
 def encrypt_pdf(pdf_document, password="owner_password"):
     """Restricts editing of the PDF but allows viewing without a password."""
-    pdf_document.save("output.pdf", encryption=fitz.PDF_ENCRYPT_AES_256, user_pw="", owner_pw=password, permissions=int("1000101000", 2))
+    pdf_document.save("output.pdf", encryption=fitz.PDF_ENCRYPT_AES_256, user_pw="", owner_pw=password, permissions=660)
     with open("output.pdf", "rb") as f:
         return f.read()
 
