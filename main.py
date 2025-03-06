@@ -260,6 +260,11 @@ def add_signature_page(pdf_bytes: bytes, request: PDFRequest) -> bytes:
             line_y = y + 20  # Line should be below the name
             timestamp_y = line_y + 15  # Timestamp should be slightly below the line
 
+            # Insert Greetings
+            page.insert_text((page_width/2-100,30),"Signed using SMaRT Sign", fontsize=font_size_title, fontname="helvetica")
+            page.insert_text((page_width/2-100,60),"Proudly brought to you by:", fontsize=font_size_title, fontname="helvetica")
+            page.insert_text((page_width/2-100,90),"Agility, Enterprise IT", fontsize=font_size_title, fontname="helvetica")
+            
             # Insert text
             page.insert_text((header_x, y), role_text, fontsize=font_size_title, fontname="helvetica-bold")
             page.insert_text((name_x, y + 10), name_text, fontsize=font_size_name, fontname="courier-oblique", color=(0, 0, 1))  # Italic blue name
