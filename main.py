@@ -169,7 +169,7 @@ def save_result(qr_image: Image):
 
 def encrypt_pdf(pdf_document, password="owner_password"):
     """Restricts editing of the PDF but allows viewing without a password."""
-    pdf_document.save("output.pdf", encryption=fitz.PDF_ENCRYPT_AES_256, user_pw="", owner_pw=password, permissions=int("1100000000", 2))
+    pdf_document.save("output.pdf", encryption=fitz.PDF_ENCRYPT_AES_256, user_pw="", owner_pw=password, permissions=int("1100000100", 2))
     with open("output.pdf", "rb") as f:
         return f.read()
 
@@ -262,9 +262,9 @@ def add_signature_page(pdf_bytes: bytes, request: PDFRequest) -> bytes:
             timestamp_y = line_y + 15  # Timestamp should be slightly below the line
 
             # Insert Greetings
-            page.insert_text((page_width/2-80,40),"Signed using SMaRT Sign", fontsize=font_size_title, fontname="helvetica")
-            page.insert_text((page_width/2-80,60),"Proudly brought to you by:", fontsize=font_size_title, fontname="helvetica")
-            page.insert_text((page_width/2-60,70),"Agility, Enterprise IT", fontsize=font_size_title, fontname="helvetica")
+            page.insert_text((page_width/2-70,40),"Signed using SMaRT Sign", fontsize=font_size_title, fontname="helvetica")
+            page.insert_text((page_width/2-70,60),"Proudly brought to you by:", fontsize=font_size_title, fontname="helvetica")
+            page.insert_text((page_width/2-55,75),"Agility, Enterprise IT", fontsize=font_size_title, fontname="helvetica")
             
             # Insert text
             page.insert_text((header_x, y), role_text, fontsize=font_size_title, fontname="helvetica-bold")
