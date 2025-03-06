@@ -14,6 +14,7 @@ from shapely.geometry import Polygon
 import fitz  # PyMuPDF
 import hashlib
 import base64
+from typing import List
 
 app = FastAPI()
 # Set up logging
@@ -166,127 +167,103 @@ def save_result(qr_image: Image):
 
     return StreamingResponse(result_buffer, media_type="image/png")
 
+def encrypt_pdf(pdf_document, password="owner_password"):
+    """Restricts editing of the PDF but allows viewing without a password."""
+    pdf_document.save("output.pdf", encryption=fitz.PDF_ENCRYPT_AES_256, user_pw="", owner_pw=password, permissions=int("1100000000", 2))
+    with open("output.pdf", "rb") as f:
+        return f.read()
+
+class SignatureEntry(BaseModel):
+    role: str
+    name: str
+    timestamp: str  # Format: "Feb 7, 2025 09:43 GMT+8"
+
 class PDFRequest(BaseModel):
     file_name: str
     file_content: str  # Base64-encoded PDF
-    certified: str  # Example: "Prepared:Robert:Feb 7, 2025 09:43;"
-    approved: str  # Example: "Reviewed:Carrot:Feb 7, 2025 09:52;"
+    level_1: List[SignatureEntry] = []
+    level_2: List[SignatureEntry] = []
+    level_3: List[SignatureEntry] = []
+    level_4: List[SignatureEntry] = []
+    level_5: List[SignatureEntry] = []
     logo_url_1: str  # First logo URL
     logo_url_2: str  # Second logo URL
 
-def parse_signatures(signature_str: str):
-    """Extracts multiple role, name, and timestamp entries from the signature string."""
+def fetch_and_resize_image(url, size=(80, 80)):
+    """Fetches an image from URL, resizes it, and converts it to bytes while preserving transparency."""
     try:
-        signature_str = signature_str.strip().rstrip(";")  # Remove trailing spaces and semicolon
-        signature_entries = signature_str.split(";")  # Split multiple entries
-
-        parsed_signatures = []
-        for entry in signature_entries:
-            parts = entry.strip().split(":")
-            if len(parts) < 3:
-                raise ValueError(f"Invalid signature format: {entry}")
-            
-            role = parts[0].strip()  # "Prepared" or "Approved"
-            name = parts[1].strip()  # "Robert" or "Carrot"
-            timestamp = ":".join(parts[2:]).strip()  # Preserve full timestamp
-            
-            parsed_signatures.append((role, name, timestamp))
-
-        return parsed_signatures  # Returns a list of (role, name, timestamp) tuples
-
-    except Exception as e:
-        raise ValueError(f"Error parsing signatures: {e}")
-
-def add_signature_page(pdf_bytes: bytes, certified: str, approved: str, logo_url_1: str, logo_url_2: str) -> bytes:
-    """Adds a signature page with optional logos to the PDF."""
-    pdf_document = fitz.open(stream=pdf_bytes, filetype="pdf")
-    page = pdf_document.new_page()
-
-    # Parse multiple signatures
-    certified_signatures = parse_signatures(certified)
-    approved_signatures = parse_signatures(approved)
-
-    # Text Formatting - Use standard fonts
-    bold_font = "helvetica-bold"
-    italic_font = "times-italic"
-    normal_font = "helvetica"
-    font_size_title = 16
-    font_size_name = 20
-    font_size_timestamp = 11
-    line_width = 200
-
-    # Positioning
-    page_width, page_height = page.rect.width, page.rect.height
-    x_margin = 50
-    section_spacing = 100
-    column_spacing = page_width / 2
-    y_start = 150
-
-    def draw_signature_block(x, y, role, name, timestamp):
-        """Draws a formatted signature block at (x, y) position with proper alignment."""
-        header_x = x + (line_width / 2) - 40
-        name_x = x + (line_width / 2) - 30
-        timestamp_x = x
-
-        page.insert_text((header_x, y), f"{role} By:", fontsize=font_size_title, fontname=bold_font)
-        page.insert_text((name_x, y + 30), name, fontsize=font_size_name, fontname=italic_font, color=(0, 0, 1))
-        page.draw_line((x, y + 55), (x + line_width, y + 55))
-        page.insert_text((timestamp_x, y + 70), f"{name} ({timestamp} GMT +8)", fontsize=font_size_timestamp, fontname=normal_font)
-
-    def fetch_and_resize_image(url, size=(80, 80)):
-        """Fetches an image from URL, resizes it, and converts it to bytes while preserving transparency."""
-        try:
-            response = requests.get(url, timeout=5)
-            if response.status_code != 200:
-                return None
-            img = Image.open(BytesIO(response.content))
-            img = img.convert("RGBA")  # Preserve transparency
-            img.thumbnail(size)
-            img_byte_arr = BytesIO()
-            img.save(img_byte_arr, format="PNG")
-            return img_byte_arr.getvalue()
-        except Exception:
+        response = requests.get(url, timeout=5)
+        if response.status_code != 200:
             return None
+        img = Image.open(BytesIO(response.content))
+        img = img.convert("RGBA")  # Preserve transparency
+        img.thumbnail(size)
+        img_byte_arr = BytesIO()
+        img.save(img_byte_arr, format="PNG")
+        return img_byte_arr.getvalue()
+    except Exception:
+        return None
 
-    def embed_image(image_bytes, x, y):
-        """Embeds an image at a specific (x, y) location on the PDF page."""
-        if image_bytes:
-            image_rect = fitz.Rect(x, y, x + 80, y + 80)
-            page.insert_image(image_rect, stream=image_bytes)
+def embed_image(page, image_bytes, x, y):
+    """Embeds an image at a specific (x, y) location on the PDF page."""
+    if image_bytes:
+        image_rect = fitz.Rect(x, y, x + 80, y + 80)
+        page.insert_image(image_rect, stream=image_bytes)
 
-    # Embed Logos (if valid)
-    logo_1 = fetch_and_resize_image(logo_url_1)
-    logo_2 = fetch_and_resize_image(logo_url_2)
-
-    embed_image(logo_1, x_margin, 30)  # Top-left
-    embed_image(logo_2, page_width - x_margin - 80, 30)  # Top-right
-
-    # Draw "Prepared By" section
-    y_position = y_start
-    x_position = x_margin
-    for role, name, timestamp in certified_signatures:
-        draw_signature_block(x_position, y_position, role, name, timestamp)
-        x_position += column_spacing
-        if x_position > page_width - x_margin:
-            x_position = x_margin
-            y_position += section_spacing
-
-    # Draw "Approved By" section
-    y_position += section_spacing
-    x_position = x_margin
-    for role, name, timestamp in approved_signatures:
-        draw_signature_block(x_position, y_position, role, name, timestamp)
-        x_position += column_spacing
-        if x_position > page_width - x_margin:
-            x_position = x_margin
-            y_position += section_spacing
-
-    # Save PDF
-    output_stream = BytesIO()
-    pdf_document.save(output_stream)
+def add_signature_page(pdf_bytes: bytes, request: PDFRequest) -> bytes:
+    """Adds signature pages dynamically based on content size."""
+    pdf_document = fitz.open(stream=pdf_bytes, filetype="pdf")
+    levels = [request.level_1, request.level_2, request.level_3, request.level_4, request.level_5]
+    
+    # Filter out empty levels
+    levels = [level for level in levels if level]
+    if not levels:
+        return encrypt_pdf(pdf_document)  # No signatures to add
+    
+    # Load Logos
+    logo_1 = fetch_and_resize_image(request.logo_url_1)
+    logo_2 = fetch_and_resize_image(request.logo_url_2)
+    
+    for level in levels:
+        page = pdf_document.new_page()
+        page_width = page.rect.width
+        x_margin = 50
+        embed_image(page, logo_1, x_margin, 30)  # Top-left
+        embed_image(page, logo_2, page_width - x_margin - 80, 30)  # Top-right
+        
+        # Signature Block Formatting
+        y_offset = 150
+        column_width = (page_width - 2 * x_margin) / 2
+        font_size_title = 12
+        font_size_name = 12
+        font_size_timestamp = 10
+        line_width = 200
+        
+        for entry in level:
+            role_text = f"{entry.role} By:"
+            name_text = f"{entry.name}"
+            timestamp_text = f"{entry.name} ({entry.timestamp} GMT+8)"
+            
+            role_x = x_margin
+            name_x = x_margin + column_width
+            timestamp_x = x_margin
+            line_x = x_margin
+            y = y_offset
+            
+            page.insert_text((role_x, y), role_text, fontsize=font_size_title, fontname="helvetica-bold")
+            page.insert_text((name_x, y + 30), name_text, fontsize=font_size_name, fontname="times-italic", color=(0, 0, 1))
+            page.draw_line((line_x, y + 55), (line_x + line_width, y + 55))
+            page.insert_text((timestamp_x, y + 70), timestamp_text, fontsize=font_size_timestamp, fontname="helvetica")
+            
+            y_offset += 100  # Move down for next entry
+            if y_offset > page.rect.height - 50:
+                page = pdf_document.new_page()
+                y_offset = 150
+    
+    # Restrict PDF editing
+    encrypted_pdf = encrypt_pdf(pdf_document)
     pdf_document.close()
-
-    return output_stream.getvalue()
+    return encrypted_pdf
 
 def compute_md5_hash(pdf_bytes: bytes) -> str:
     """Compute MD5 hash of the given PDF bytes."""
@@ -296,7 +273,7 @@ def compute_md5_hash(pdf_bytes: bytes) -> str:
 async def process_pdf(request: PDFRequest):
     try:
         pdf_bytes = base64.b64decode(request.file_content)
-        modified_pdf = add_signature_page(pdf_bytes, request.certified, request.approved, request.logo_url_1, request.logo_url_2)
+        modified_pdf = add_signature_page(pdf_bytes, request)
         pdf_hash = compute_md5_hash(modified_pdf)
         modified_pdf_base64 = base64.b64encode(modified_pdf).decode("utf-8")
 
