@@ -176,6 +176,7 @@ def encrypt_pdf(pdf_document, password="owner_password"):
 class SignatureEntry(BaseModel):
     role: str
     name: str
+    adname: str
     timestamp: str  # Format: "Feb 7, 2025 09:43 GMT+8"
 
 class PDFRequest(BaseModel):
@@ -246,7 +247,7 @@ def add_signature_page(pdf_bytes: bytes, request: PDFRequest) -> bytes:
         for i, entry in enumerate(level):
             role_text = f"{entry.role} By:"
             name_text = entry.name
-            timestamp_text = f"{entry.name} ({entry.timestamp} GMT+8)"
+            timestamp_text = f"{entry.adname} ({entry.timestamp} GMT+8)"
 
             # Define X positions based on left or right column
             header_x = x_margin + (col_position * column_width)
@@ -261,9 +262,9 @@ def add_signature_page(pdf_bytes: bytes, request: PDFRequest) -> bytes:
             timestamp_y = line_y + 15  # Timestamp should be slightly below the line
 
             # Insert Greetings
-            page.insert_text((page_width/2-100,30),"Signed using SMaRT Sign", fontsize=font_size_title, fontname="helvetica")
-            page.insert_text((page_width/2-100,60),"Proudly brought to you by:", fontsize=font_size_title, fontname="helvetica")
-            page.insert_text((page_width/2-100,90),"Agility, Enterprise IT", fontsize=font_size_title, fontname="helvetica")
+            page.insert_text((page_width/2-80,40),"Signed using SMaRT Sign", fontsize=font_size_title, fontname="helvetica")
+            page.insert_text((page_width/2-80,60),"Proudly brought to you by:", fontsize=font_size_title, fontname="helvetica")
+            page.insert_text((page_width/2-60,70),"Agility, Enterprise IT", fontsize=font_size_title, fontname="helvetica")
             
             # Insert text
             page.insert_text((header_x, y), role_text, fontsize=font_size_title, fontname="helvetica-bold")
