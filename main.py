@@ -233,32 +233,58 @@ def add_signature_page(pdf_bytes: bytes, request: PDFRequest) -> bytes:
         
         # Signature Block Formatting
         y_offset = 150
-        column_width = (page_width - 2 * x_margin) / 2
+        column_width = (page_width - 2 * x_margin) / 2  # Divide into 2 columns
         font_size_title = 12
         font_size_name = 12
         font_size_timestamp = 10
         line_width = 200
-        
-        for entry in level:
+
+        col_position = 0  # 0 = left, 1 = right
+        signatures_per_row = 2
+        row_count = 0
+
+        for i, entry in enumerate(level):
             role_text = f"{entry.role} By:"
-            name_text = f"{entry.name}"
+            name_text = entry.name
             timestamp_text = f"{entry.name} ({entry.timestamp} GMT+8)"
-            
-            role_x = x_margin
-            name_x = x_margin + column_width
-            timestamp_x = x_margin
-            line_x = x_margin
-            y = y_offset
-            
-            page.insert_text((role_x, y), role_text, fontsize=font_size_title, fontname="helvetica-bold")
-            page.insert_text((name_x, y + 30), name_text, fontsize=font_size_name, fontname="times-italic", color=(0, 0, 1))
-            page.draw_line((line_x, y + 55), (line_x + line_width, y + 55))
-            page.insert_text((timestamp_x, y + 70), timestamp_text, fontsize=font_size_timestamp, fontname="helvetica")
-            
-            y_offset += 100  # Move down for next entry
-            if y_offset > page.rect.height - 50:
+
+            # Define X positions based on left or right column
+            header_x = x_margin + (col_position * column_width)
+            name_x = header_x
+            line_x_start = header_x
+            line_x_end = header_x + line_width
+            timestamp_x = header_x
+
+            # Define Y positions
+            y = y_offset  # Adjust based on available space
+            line_y = y + 20  # Line should be below the name
+            timestamp_y = line_y + 15  # Timestamp should be slightly below the line
+
+            # Insert text
+            page.insert_text((header_x, y), role_text, fontsize=font_size_title, fontname="helvetica-bold")
+            page.insert_text((name_x, y + 10), name_text, fontsize=font_size_name, fontname="courier-oblique", color=(0, 0, 1))  # Italic blue name
+
+            # Draw signature line
+            page.draw_line((line_x_start, line_y), (line_x_end, line_y))
+
+            # Insert timestamp with correct formatting
+            page.insert_text((timestamp_x, timestamp_y), timestamp_text, fontsize=font_size_timestamp, fontname="helvetica")
+
+            # Switch column
+            col_position += 1
+
+            # If two signatures are placed in the row, move to next row
+            if col_position >= signatures_per_row:
+                col_position = 0  # Reset to left column
+                y_offset += 100  # Move down for new row
+                row_count += 1
+
+            # If space is exceeded, start a new page
+            if y_offset > page.rect.height - 100:
                 page = pdf_document.new_page()
                 y_offset = 150
+                col_position = 0  # Reset to left column
+                row_count = 0
     
     # Restrict PDF editing
     encrypted_pdf = encrypt_pdf(pdf_document)
