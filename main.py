@@ -268,7 +268,7 @@ def add_signature_page(pdf_bytes: bytes, request: PDFRequest) -> bytes:
             
             # Insert text
             page.insert_text((header_x, y), role_text, fontsize=font_size_title, fontname="helvetica-bold")
-            page.insert_text((name_x, y + 20), name_text, fontsize=font_size_name, fontname="times-italic", color=(0, 0, 1))  # Italic blue name
+            page.insert_text((name_x, y + 15), name_text, fontsize=font_size_name, fontname="times-italic", color=(0, 0, 1))  # Italic blue name
 
             # Draw signature line
             page.draw_line((line_x_start, line_y), (line_x_end, line_y))
