@@ -245,7 +245,7 @@ def add_signature_page(pdf_bytes: bytes, request: PDFRequest) -> bytes:
         row_count = 0
 
         for i, entry in enumerate(level):
-            role_text = f"{entry.role} By:"
+            role_text = f"{entry.role}:"
             name_text = entry.name
             timestamp_text = f"{entry.adname} ({entry.timestamp} GMT+8)"
 
