@@ -3,20 +3,18 @@ from fastapi.responses import JSONResponse
 from starlette.responses import StreamingResponse
 from io import BytesIO
 import requests
-from PIL import Image, ImageDraw, ImageFont, UnidentifiedImageError
+from PIL import Image, ImageDraw, ImageFont
 import segno
 import logging
 from staticmap import StaticMap, CircleMarker
 from geopy.geocoders import Nominatim
 import xml.etree.ElementTree as ET
-from pydantic import BaseModel, Field
+from pydantic import BaseModel
 from shapely.geometry import Polygon
 import fitz  # PyMuPDF
 import hashlib
 import base64
-from typing import List, Optional
-import secrets
-import string
+from typing import List
 
 app = FastAPI()
 # Set up logging
@@ -169,163 +167,151 @@ def save_result(qr_image: Image):
 
     return StreamingResponse(result_buffer, media_type="image/png")
 
-# ==================== Constants ====================
-LOGO_SIZE = (80, 80)
-X_MARGIN = 50
-SIGNATURES_PER_ROW = 2
-PAGE_BOTTOM_MARGIN = 100
-PAGE_TOP_Y = 30
-SIGNATURE_START_Y = 150
-FONT_SIZE_TITLE = 12
-FONT_SIZE_NAME = 12
-FONT_SIZE_TIMESTAMP = 10
-LINE_WIDTH = 200
+def encrypt_pdf(pdf_document, password="owner_password"):
+    """Restricts editing of the PDF but allows viewing without a password."""
+    pdf_document.save("output.pdf", encryption=fitz.PDF_ENCRYPT_AES_256, user_pw="", owner_pw=password, permissions=660)
+    with open("output.pdf", "rb") as f:
+        return f.read()
 
-# ==================== Models ====================
 class SignatureEntry(BaseModel):
     role: str
     name: str
     adname: str
-    timestamp: str = Field(..., regex=r".+\d{4}.*GMT\+8")  # Simple regex check
+    timestamp: str  # Format: "Feb 7, 2025 09:43 GMT+8"
 
 class PDFRequest(BaseModel):
-    file_name: str = Field(..., min_length=1)
+    file_name: str
     file_content: str  # Base64-encoded PDF
     level_1: List[SignatureEntry] = []
     level_2: List[SignatureEntry] = []
     level_3: List[SignatureEntry] = []
     level_4: List[SignatureEntry] = []
     level_5: List[SignatureEntry] = []
-    logo_url_1: str
-    logo_url_2: str
+    logo_url_1: str  # First logo URL
+    logo_url_2: str  # Second logo URL
 
-# ==================== Utility Functions ====================
-def generate_strong_password(length: int = 32) -> str:
-    """Generates a cryptographically secure strong password."""
-    alphabet = string.ascii_letters + string.digits + "!@#$%^&*()-_=+[]{}|;:,.<>?"
-    return ''.join(secrets.choice(alphabet) for _ in range(length))
-
-def encrypt_pdf(pdf_document) -> tuple[bytes, str]:
-    """Encrypts the PDF with a strong random password (editing restricted)."""
-    owner_password = generate_strong_password()
-    output_stream = BytesIO()
-    pdf_document.save(
-        output_stream,
-        encryption=fitz.PDF_ENCRYPT_AES_256,
-        user_pw="",  # Anyone can view
-        owner_pw=owner_password,  # Cannot edit without this password
-        permissions=660  # Allow printing + copying
-    )
-    return output_stream.getvalue(), owner_password
-
-def fetch_and_resize_image(url: str, size=LOGO_SIZE) -> Optional[bytes]:
-    """Fetches an image from URL, resizes it, and converts it to bytes."""
+def fetch_and_resize_image(url, size=(80, 80)):
+    """Fetches an image from URL, resizes it, and converts it to bytes while preserving transparency."""
     try:
         response = requests.get(url, timeout=5)
-        response.raise_for_status()
+        if response.status_code != 200:
+            return None
         img = Image.open(BytesIO(response.content))
-        img = img.convert("RGBA")
+        img = img.convert("RGBA")  # Preserve transparency
         img.thumbnail(size)
         img_byte_arr = BytesIO()
         img.save(img_byte_arr, format="PNG")
         return img_byte_arr.getvalue()
-    except (requests.RequestException, UnidentifiedImageError):
+    except Exception:
         return None
 
-def embed_image(page, image_bytes: Optional[bytes], x: float, y: float):
+def embed_image(page, image_bytes, x, y):
     """Embeds an image at a specific (x, y) location on the PDF page."""
     if image_bytes:
-        image_rect = fitz.Rect(x, y, x + LOGO_SIZE[0], y + LOGO_SIZE[1])
+        image_rect = fitz.Rect(x, y, x + 80, y + 80)
         page.insert_image(image_rect, stream=image_bytes)
 
-def insert_header_text(page, page_width):
-    """Inserts branding text at the top of the signature page."""
-    page.insert_text((page_width / 2 - 70, 40), "Signed using SMaRT Sign", fontsize=FONT_SIZE_TITLE, fontname="helvetica")
-    page.insert_text((page_width / 2 - 70, 60), "Proudly brought to you by:", fontsize=FONT_SIZE_TITLE, fontname="helvetica")
-    page.insert_text((page_width / 2 - 55, 75), "Agility, Enterprise IT", fontsize=FONT_SIZE_TITLE, fontname="helvetica")
-
-def add_signature_page(pdf_bytes: bytes, request: PDFRequest) -> tuple[bytes, str]:
+def add_signature_page(pdf_bytes: bytes, request: PDFRequest) -> bytes:
     """Adds signature pages dynamically based on content size."""
     pdf_document = fitz.open(stream=pdf_bytes, filetype="pdf")
-    levels = [lvl for lvl in [request.level_1, request.level_2, request.level_3, request.level_4, request.level_5] if lvl]
+    levels = [request.level_1, request.level_2, request.level_3, request.level_4, request.level_5]
+    
+    # Filter out empty levels
+    levels = [level for level in levels if level]
     if not levels:
-        return encrypt_pdf(pdf_document)
-
-    # Load logos once
+        return encrypt_pdf(pdf_document)  # No signatures to add
+    
+    # Load Logos
     logo_1 = fetch_and_resize_image(request.logo_url_1)
     logo_2 = fetch_and_resize_image(request.logo_url_2)
+    
+    for level in levels:
+        page = pdf_document.new_page()
+        page_width = page.rect.width
+        x_margin = 50
+        embed_image(page, logo_1, x_margin, 30)  # Top-left
+        embed_image(page, logo_2, page_width - x_margin - 80, 30)  # Top-right
+        
+        # Signature Block Formatting
+        y_offset = 150
+        column_width = (page_width - 2 * x_margin) / 2  # Divide into 2 columns
+        font_size_title = 12
+        font_size_name = 12
+        font_size_timestamp = 10
+        line_width = 200
 
-    try:
-        for level in levels:
-            page = pdf_document.new_page()
-            page_width = page.rect.width
-            y_offset = SIGNATURE_START_Y
-            col_position = 0
-            insert_header_text(page, page_width)
-            embed_image(page, logo_1, X_MARGIN, PAGE_TOP_Y)
-            embed_image(page, logo_2, page_width - X_MARGIN - LOGO_SIZE[0], PAGE_TOP_Y)
+        col_position = 0  # 0 = left, 1 = right
+        signatures_per_row = 2
+        row_count = 0
 
-            for i, entry in enumerate(level):
-                # Prepare signature block
-                header_x = X_MARGIN + (col_position * (page_width - 2 * X_MARGIN) / 2)
-                name_x = header_x
-                line_x_start = header_x
-                line_x_end = header_x + LINE_WIDTH
-                timestamp_x = header_x
+        for i, entry in enumerate(level):
+            role_text = f"{entry.role}:"
+            name_text = entry.name
+            timestamp_text = f"{entry.adname} ({entry.timestamp} GMT+8)"
 
-                # Y positions
-                y = y_offset
-                line_y = y + 20
-                timestamp_y = line_y + 15
+            # Define X positions based on left or right column
+            header_x = x_margin + (col_position * column_width)
+            name_x = header_x
+            line_x_start = header_x
+            line_x_end = header_x + line_width
+            timestamp_x = header_x
 
-                # Signature text
-                page.insert_text((header_x, y), f"{entry.role} By:", fontsize=FONT_SIZE_TITLE, fontname="helvetica-bold")
-                page.insert_text((name_x, y + 15), entry.name, fontsize=FONT_SIZE_NAME, fontname="times-italic", color=(0, 0, 1))
-                page.draw_line((line_x_start, line_y), (line_x_end, line_y))
-                page.insert_text((timestamp_x, timestamp_y), f"{entry.adname} ({entry.timestamp})", fontsize=FONT_SIZE_TIMESTAMP, fontname="helvetica")
+            # Define Y positions
+            y = y_offset  # Adjust based on available space
+            line_y = y + 20  # Line should be below the name
+            timestamp_y = line_y + 15  # Timestamp should be slightly below the line
 
-                # Handle column and row switching
-                col_position += 1
-                if col_position >= SIGNATURES_PER_ROW:
-                    col_position = 0
-                    y_offset += 100
+            # Insert Greetings
+            page.insert_text((page_width/2-70,40),"Signed using SMaRT Sign", fontsize=font_size_title, fontname="helvetica")
+            page.insert_text((page_width/2-70,60),"Proudly brought to you by:", fontsize=font_size_title, fontname="helvetica")
+            page.insert_text((page_width/2-55,75),"Agility, Enterprise IT", fontsize=font_size_title, fontname="helvetica")
+            
+            # Insert text
+            page.insert_text((header_x, y), role_text, fontsize=font_size_title, fontname="helvetica-bold")
+            page.insert_text((name_x, y + 15), name_text, fontsize=font_size_name, fontname="times-italic", color=(0, 0, 1))  # Italic blue name
 
-                # Create new page if space is exceeded
-                if y_offset > page.rect.height - PAGE_BOTTOM_MARGIN:
-                    page = pdf_document.new_page()
-                    y_offset = SIGNATURE_START_Y
-                    col_position = 0
-                    insert_header_text(page, page_width)
-                    embed_image(page, logo_1, X_MARGIN, PAGE_TOP_Y)
-                    embed_image(page, logo_2, page_width - X_MARGIN - LOGO_SIZE[0], PAGE_TOP_Y)
+            # Draw signature line
+            page.draw_line((line_x_start, line_y), (line_x_end, line_y))
 
-        return encrypt_pdf(pdf_document)
+            # Insert timestamp with correct formatting
+            page.insert_text((timestamp_x, timestamp_y), timestamp_text, fontsize=font_size_timestamp, fontname="helvetica")
 
-    finally:
-        pdf_document.close()
+            # Switch column
+            col_position += 1
+
+            # If two signatures are placed in the row, move to next row
+            if col_position >= signatures_per_row:
+                col_position = 0  # Reset to left column
+                y_offset += 100  # Move down for new row
+                row_count += 1
+
+            # If space is exceeded, start a new page
+            if y_offset > page.rect.height - 100:
+                page = pdf_document.new_page()
+                y_offset = 150
+                col_position = 0  # Reset to left column
+                row_count = 0
+    
+    # Restrict PDF editing
+    encrypted_pdf = encrypt_pdf(pdf_document)
+    pdf_document.close()
+    return encrypted_pdf
 
 def compute_md5_hash(pdf_bytes: bytes) -> str:
     """Compute MD5 hash of the given PDF bytes."""
     return hashlib.md5(pdf_bytes).hexdigest()
 
-# ==================== Endpoint ====================
-@app.post("/process-pdf-refactored/")
-async def process_pdf_refactored(request: PDFRequest):
+@app.post("/process-pdf/")
+async def process_pdf(request: PDFRequest):
     try:
         pdf_bytes = base64.b64decode(request.file_content)
-    except Exception:
-        raise HTTPException(status_code=400, detail="Invalid base64-encoded PDF content")
-
-    try:
-        modified_pdf, owner_password = add_signature_page(pdf_bytes, request)
+        modified_pdf = add_signature_page(pdf_bytes, request)
         pdf_hash = compute_md5_hash(modified_pdf)
         modified_pdf_base64 = base64.b64encode(modified_pdf).decode("utf-8")
 
         return JSONResponse(content={
             "md5_hash": pdf_hash,
-            "modified_pdf": modified_pdf_base64,
-            "owner_password": owner_password  # ⚠️ Return only if it's safe to expose
+            "modified_pdf": modified_pdf_base64
         })
-
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
+        raise HTTPException(status_code=400, detail=f"Error processing PDF: {str(e)}")
