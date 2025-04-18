@@ -193,6 +193,7 @@ class PDFRequest(BaseModel):
     level_5: List[SignatureEntry] = []
     logo_url_1: str  # First logo URL
     logo_url_2: str  # Second logo URL
+    link: str
 
 def encrypt_pdf(pdf_document):
     """Restricts editing of the PDF but allows viewing without a password."""
@@ -264,9 +265,9 @@ def create_qr_with_link(page, url, x_pos, y_pos, size=80):
     page.insert_image(rect, stream=img_bytes.getvalue(), keep_proportion=True)
     
     # Add clickable link annotation over the QR code
-    link_annot = page.add_link_annot(rect, uri=url)
+    page.add_link_annot(rect, uri=url)
     
-    return rect  # Return the rectangle where the QR was inserted
+    #return rect  # Return the rectangle where the QR was inserted
 
 def add_signature_page(pdf_bytes: bytes, request: PDFRequest) -> bytes:
     """Adds signature pages dynamically based on content size."""
