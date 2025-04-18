@@ -19,6 +19,7 @@ import secrets
 import os
 import uuid
 import io
+import qrcode
 
 app = FastAPI()
 # Set up logging
@@ -60,7 +61,7 @@ def qrdemo(color: str = '#7A663C', logourl: str = defaultLogo, percentageOfQrCod
     return save_result(qr_image)
 
 @app.get("/qrcode", response_class=Response)
-def qrcode(data:str, color: str = '#7A663C', logourl: str = defaultLogo, percentageOfQrCode: float=0.3, textLabel: str | None = None, fontSize: int | None = None):
+def qrcodes(data:str, color: str = '#7A663C', logourl: str = defaultLogo, percentageOfQrCode: float=0.3, textLabel: str | None = None, fontSize: int | None = None):
 
     # Open QR code image
     qr_image = Image.open(generate_qr(data, color)).convert('RGBA')  # Convert QR code to RGBA mode
