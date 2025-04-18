@@ -174,7 +174,7 @@ def save_result(qr_image: Image):
 
 
 # Define the path to the custom font file
-FONT_PATH = os.path.join(os.path.dirname(__file__), "segoescript.ttf")
+FONT_PATH = "./segoescript.ttf"
 
 class SignatureEntry(BaseModel):
     role: str
@@ -240,12 +240,11 @@ def add_text_with_custom_font(page, point, text, fontsize, color=None):
     """Add text with a custom font using the text writer approach."""
     try:
         # Try to use the custom font
-        if os.path.exists(FONT_PATH):
-            font = fitz.Font("segoescript", fontfile=FONT_PATH)
-            tw = fitz.TextWriter(page.rect)
-            tw.append(point, text, font=font, fontsize=fontsize, color=color or (0, 0, 0))
-            tw.write_text(page)
-            return True
+        font = fitz.Font("segoescript", fontfile=FONT_PATH)
+        tw = fitz.TextWriter(page.rect)
+        tw.append(point, text, font=font, fontsize=fontsize, color=color or (0, 0, 0))
+        tw.write_text(page)
+        return True
     except Exception as e:
         print(f"Failed to use custom font: {str(e)}")
     
@@ -294,7 +293,7 @@ def add_signature_page(pdf_bytes: bytes, request: PDFRequest) -> bytes:
             for y_pos, text in zip(greeting_y_positions, greeting_texts):
                 # Calculate x position to center the text
                 text_width = len(text) * 5  # Approximate width
-                text_x = (page_width / 2) - (text_width / 2)
+                text_x = (page_width - text_width) / 2
                 page.insert_text((text_x, y_pos), text, fontsize=12, fontname="helvetica")
             
             # Signature Block Formatting
