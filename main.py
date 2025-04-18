@@ -29,6 +29,8 @@ defaultLogo = "https://postimg.cc/SXGBrPQQ"
 class PolygonData(BaseModel): 
     xml_data: str
 
+
+
 @app.get("/polygon") 
 async def process_polygon(xml_data: str):
     root = ET.fromstring(xml_data) 
@@ -170,6 +172,9 @@ def save_result(qr_image: Image):
 
     return StreamingResponse(result_buffer, media_type="image/png")
 
+# Define the path to the custom font file
+FONT_PATH = os.path.join(os.path.dirname(__file__), "segoescript.ttf")
+
 class SignatureEntry(BaseModel):
     role: str
     name: str
@@ -234,6 +239,18 @@ def add_signature_page(pdf_bytes: bytes, request: PDFRequest) -> bytes:
     """Adds signature pages dynamically based on content size."""
     try:
         pdf_document = fitz.open(stream=pdf_bytes, filetype="pdf")
+        
+        # Load the custom font if it exists
+        custom_font_name = None
+        if os.path.exists(FONT_PATH):
+            try:
+                # Register the font with PyMuPDF
+                custom_font_name = "segoescript"  # Name to reference the font
+                pdf_document.insert_font(fontname=custom_font_name, fontfile=FONT_PATH)
+            except Exception as e:
+                # Fall back to a standard font if font loading fails
+                print(f"Font loading failed: {str(e)}")
+        
         # Get non-empty signature levels
         levels = [level for level in [
             request.level_1, request.level_2, request.level_3, 
@@ -289,8 +306,10 @@ def add_signature_page(pdf_bytes: bytes, request: PDFRequest) -> bytes:
                 
                 # Insert text
                 page.insert_text((header_x, y), f"{entry.role}:", fontsize=font_size_title, fontname="helvetica-bold")
-                # Using Segoe Script for the signature name
-                page.insert_text((header_x, y + 15), entry.name, fontsize=font_size_name, fontname="Segoe Script", color=(0, 0, 1))
+                
+                # Use custom font for signature name if available, otherwise fall back to times-italic
+                signature_font = custom_font_name if custom_font_name else "times-italic"
+                page.insert_text((header_x, y + 15), entry.name, fontsize=font_size_name, fontname=signature_font, color=(0, 0, 1))
                 
                 # Draw signature line
                 line_y = y + 20
