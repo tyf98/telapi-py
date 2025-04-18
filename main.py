@@ -18,6 +18,7 @@ from typing import List
 import secrets
 import os
 import uuid
+import io
 
 app = FastAPI()
 # Set up logging
@@ -236,6 +237,37 @@ def embed_image(page, image_bytes, x, y, size=(80, 80)):
         image_rect = fitz.Rect(x, y, x + size[0], y + size[1])
         page.insert_image(image_rect, stream=image_bytes)
 
+def create_qr_with_link(page, url, x_pos, y_pos, size=80):
+    # Generate QR code
+    qr = qrcode.QRCode(
+        version=1,
+        error_correction=qrcode.constants.ERROR_CORRECT_L,
+        box_size=10,
+        border=1,
+    )
+    qr.add_data(url)
+    qr.make(fit=True)
+    
+    # Create a PIL image from the QR code
+    qr_img = qr.make_image(fill_color="black", back_color="white")
+    
+    # Resize image to match the logo size
+    qr_img = qr_img.resize((size, size))
+    
+    # Convert PIL image to bytes
+    img_bytes = io.BytesIO()
+    qr_img.save(img_bytes, format='PNG')
+    img_bytes.seek(0)
+    
+    # Insert image into PDF
+    rect = fitz.Rect(x_pos, y_pos, x_pos + size, y_pos + size)
+    page.insert_image(rect, stream=img_bytes.getvalue(), keep_proportion=True)
+    
+    # Add clickable link annotation over the QR code
+    link_annot = page.add_link_annot(rect, uri=url)
+    
+    return rect  # Return the rectangle where the QR was inserted
+
 def add_signature_page(pdf_bytes: bytes, request: PDFRequest) -> bytes:
     """Adds signature pages dynamically based on content size."""
     try:
@@ -249,10 +281,10 @@ def add_signature_page(pdf_bytes: bytes, request: PDFRequest) -> bytes:
         
         if not levels:
             return encrypt_pdf(pdf_document)  # No signatures to add
-        
+        link = request.link
         # Load logos once (optimization)
         logo_1 = fetch_and_resize_image(request.logo_url_1)
-        logo_2 = fetch_and_resize_image(request.logo_url_2)
+        #logo_2 = fetch_and_resize_image(request.logo_url_2)
         
         for level in levels:
             page = pdf_document.new_page()
@@ -261,7 +293,9 @@ def add_signature_page(pdf_bytes: bytes, request: PDFRequest) -> bytes:
             
             # Add logos
             embed_image(page, logo_1, x_margin, 30)  # Top-left
-            embed_image(page, logo_2, page_width - x_margin - 80, 30)  # Top-right
+            #embed_image(page, logo_2, page_width - x_margin - 80, 30)  # Top-right
+            url = link  # The URL you want the QR code to point to
+            create_qr_with_link(page, url, page_width - x_margin - 80, 30, size=80)
             
             # Insert Greetings
             greeting_y_positions = [40, 60, 75]
