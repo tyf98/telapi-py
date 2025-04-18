@@ -252,6 +252,17 @@ def generate_qr_code_segno(url, size=80):
 
 def embed_clickable_qr(page, url, x, y, size=80):
     """Embeds a clickable QR code at a specific (x, y) location on the PDF page."""
+    # Add text above the QR code
+    text = "Click or Scan to verify"
+    text_width = fitz.get_text_length(text, fontname="Times-Italic", fontsize=9)
+    
+    # Center the text above the QR code
+    text_x = x + (size - text_width) / 2
+    text_y = y - 15  # Position text 15 points above the QR code
+    
+    # Insert the text in italics
+    page.insert_text((text_x, text_y), text, fontname="Times-Italic", fontsize=9)
+    
     # Generate the QR code
     qr_bytes = generate_qr_code_segno(url, size)
     
@@ -265,8 +276,6 @@ def embed_clickable_qr(page, url, x, y, size=80):
         "uri": url,
         "from": qr_rect
     })
-    
-    #return link
 
 def add_signature_page(pdf_bytes: bytes, request: PDFRequest) -> bytes:
     """Adds signature pages dynamically based on content size."""
