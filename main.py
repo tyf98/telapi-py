@@ -18,6 +18,7 @@ from typing import List
 import secrets
 import os
 import uuid
+import io
 
 app = FastAPI()
 # Set up logging
@@ -237,33 +238,35 @@ def embed_image(page, image_bytes, x, y, size=(80, 80)):
         image_rect = fitz.Rect(x, y, x + size[0], y + size[1])
         page.insert_image(image_rect, stream=image_bytes)
 
-def create_qr_with_link_simple(page, url, x_pos, y_pos, size=80):
-    try:
-        # Generate QR code
-        qr = segno.make(url)
-        
-        # Save directly to PNG with desired scale
-        temp_path = "temp_qr.png"
-        qr.save(temp_path, scale=8, border=1)
-        
-        # Insert image into PDF and scale it within PyMUPDF
-        rect = fitz.Rect(x_pos, y_pos, x_pos + size, y_pos + size)
-        page.insert_image(rect, filename=temp_path, keep_proportion=True)
-        
-        # Add clickable link annotation
-        page.add_link_annot(rect, uri=url)
-        
-        # Clean up
-        if os.path.exists(temp_path):
-            os.remove(temp_path)
-            
-        #return rect
-        
-    except Exception as e:
-        print(f"Error creating QR code: {e}")
-        if os.path.exists("temp_qr.png"):
-            os.remove("temp_qr.png")
-        raise
+def generate_qr_code_segno(url, size=80):
+    """Generate a QR code image from a URL using segno."""
+    qr = segno.make(url)
+    
+    # Convert the QR code to bytes
+    img_byte_arr = io.BytesIO()
+    # Save as PNG with a white background and scaled to the desired size
+    qr.save(img_byte_arr, kind='png', scale=5, border=1, dark="black", light="white")
+    img_byte_arr.seek(0)
+    
+    return img_byte_arr.getvalue()
+
+def embed_clickable_qr(page, url, x, y, size=80):
+    """Embeds a clickable QR code at a specific (x, y) location on the PDF page."""
+    # Generate the QR code
+    qr_bytes = generate_qr_code_segno(url, size)
+    
+    # Embed the QR code image
+    qr_rect = fitz.Rect(x, y, x + size, y + size)
+    page.insert_image(qr_rect, stream=qr_bytes)
+    
+    # Make the QR code clickable by adding a link annotation
+    page.add_link({
+        "kind": fitz.LINK_URI,
+        "uri": url,
+        "from": qr_rect
+    })
+    
+    #return link
 
 def add_signature_page(pdf_bytes: bytes, request: PDFRequest) -> bytes:
     """Adds signature pages dynamically based on content size."""
@@ -292,7 +295,9 @@ def add_signature_page(pdf_bytes: bytes, request: PDFRequest) -> bytes:
             embed_image(page, logo_1, x_margin, 30)  # Top-left
             #embed_image(page, logo_2, page_width - x_margin - 80, 30)  # Top-right
             url = link  # The URL you want the QR code to point to
-            create_qr_with_link_simple(page, url, page_width - x_margin - 80, 30, size=80)
+            # Add clickable QR code on the right
+            qr_size = 80
+            embed_clickable_qr(page, link, page_width - x_margin - qr_size, 30, qr_size)
             
             # Insert Greetings
             greeting_y_positions = [40, 60, 75]
