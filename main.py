@@ -258,7 +258,7 @@ def embed_clickable_qr(page, url, x, y, size=80):
     
     # Center the text above the QR code
     text_x = x + (size - text_width) / 2
-    text_y = y - 15  # Position text 15 points above the QR code
+    text_y = y - 5  # Position text 15 points above the QR code
     
     # Insert the text in italics
     page.insert_text((text_x, text_y), text, fontname="Times-Italic", fontsize=9)
