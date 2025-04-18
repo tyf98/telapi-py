@@ -172,6 +172,7 @@ def save_result(qr_image: Image):
 
     return StreamingResponse(result_buffer, media_type="image/png")
 
+
 # Define the path to the custom font file
 FONT_PATH = os.path.join(os.path.dirname(__file__), "segoescript.ttf")
 
@@ -235,21 +236,30 @@ def embed_image(page, image_bytes, x, y, size=(80, 80)):
         image_rect = fitz.Rect(x, y, x + size[0], y + size[1])
         page.insert_image(image_rect, stream=image_bytes)
 
+def add_text_with_custom_font(page, point, text, fontsize, color=None):
+    """Add text with a custom font using the text writer approach."""
+    try:
+        # Try to use the custom font
+        if os.path.exists(FONT_PATH):
+            font = fitz.Font("segoescript", fontfile=FONT_PATH)
+            tw = fitz.TextWriter(page.rect)
+            tw.append(point, text, font=font, fontsize=fontsize, color=color or (0, 0, 0))
+            tw.write_text(page)
+            return True
+    except Exception as e:
+        print(f"Failed to use custom font: {str(e)}")
+    
+    # Fall back to default font
+    if color:
+        page.insert_text(point, text, fontsize=fontsize, fontname="times-italic", color=color)
+    else:
+        page.insert_text(point, text, fontsize=fontsize, fontname="times-italic")
+    return False
+
 def add_signature_page(pdf_bytes: bytes, request: PDFRequest) -> bytes:
     """Adds signature pages dynamically based on content size."""
     try:
         pdf_document = fitz.open(stream=pdf_bytes, filetype="pdf")
-        
-        # Load the custom font if it exists
-        custom_font_name = None
-        if os.path.exists(FONT_PATH):
-            try:
-                # Register the font with PyMuPDF
-                custom_font_name = "segoescript"  # Name to reference the font
-                pdf_document.insert_font(fontname=custom_font_name, fontfile=FONT_PATH)
-            except Exception as e:
-                # Fall back to a standard font if font loading fails
-                print(f"Font loading failed: {str(e)}")
         
         # Get non-empty signature levels
         levels = [level for level in [
@@ -304,12 +314,11 @@ def add_signature_page(pdf_bytes: bytes, request: PDFRequest) -> bytes:
                 header_x = x_margin + (col_position * column_width)
                 y = y_offset
                 
-                # Insert text
+                # Insert text for role
                 page.insert_text((header_x, y), f"{entry.role}:", fontsize=font_size_title, fontname="helvetica-bold")
                 
-                # Use custom font for signature name if available, otherwise fall back to times-italic
-                signature_font = custom_font_name if custom_font_name else "times-italic"
-                page.insert_text((header_x, y + 15), entry.name, fontsize=font_size_name, fontname=signature_font, color=(0, 0, 1))
+                # Use custom font for signature name
+                add_text_with_custom_font(page, (header_x, y + 15), entry.name, font_size_name, color=(0, 0, 1))
                 
                 # Draw signature line
                 line_y = y + 20
