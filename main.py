@@ -18,7 +18,6 @@ from typing import List
 import secrets
 import os
 import uuid
-import io
 
 app = FastAPI()
 # Set up logging
@@ -293,7 +292,7 @@ def add_signature_page(pdf_bytes: bytes, request: PDFRequest) -> bytes:
             embed_image(page, logo_1, x_margin, 30)  # Top-left
             #embed_image(page, logo_2, page_width - x_margin - 80, 30)  # Top-right
             url = link  # The URL you want the QR code to point to
-            create_qr_with_link(page, url, page_width - x_margin - 80, 30, size=80)
+            create_qr_with_link_simple(page, url, page_width - x_margin - 80, 30, size=80)
             
             # Insert Greetings
             greeting_y_positions = [40, 60, 75]
