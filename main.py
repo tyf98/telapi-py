@@ -273,7 +273,9 @@ def add_signature_page(pdf_bytes: bytes, request: PDFRequest) -> bytes:
             
             for y_pos, text in zip(greeting_y_positions, greeting_texts):
                 # Calculate x position to center the text
-                text_width = len(text) * 5  # Approximate width
+                tempFont = fitz.Font("helvetica")
+                text_width = tempFont.text_length(text, fontsize=12)
+                
                 text_x = (page_width / 2) - (text_width / 2)
                 page.insert_text((text_x, y_pos), text, fontsize=12, fontname="helvetica")
             
