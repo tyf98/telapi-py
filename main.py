@@ -174,7 +174,7 @@ def save_result(qr_image: Image):
 
 
 # Define the path to the custom font file
-FONT_PATH = "./segoescript.ttf"
+FONT_PATH = r"segoescript.ttf"
 
 class SignatureEntry(BaseModel):
     role: str
@@ -236,25 +236,6 @@ def embed_image(page, image_bytes, x, y, size=(80, 80)):
         image_rect = fitz.Rect(x, y, x + size[0], y + size[1])
         page.insert_image(image_rect, stream=image_bytes)
 
-def add_text_with_custom_font(page, point, text, fontsize, color=None):
-    """Add text with a custom font using the text writer approach."""
-    try:
-        # Try to use the custom font
-        font = fitz.Font("segoescript", fontfile=FONT_PATH)
-        tw = fitz.TextWriter(page.rect)
-        tw.append(point, text, font=font, fontsize=fontsize, color=color or (0, 0, 0))
-        tw.write_text(page)
-        return True
-    except Exception as e:
-        print(f"Failed to use custom font: {str(e)}")
-    
-    # Fall back to default font
-    if color:
-        page.insert_text(point, text, fontsize=fontsize, fontname="times-italic", color=color)
-    else:
-        page.insert_text(point, text, fontsize=fontsize, fontname="times-italic")
-    return False
-
 def add_signature_page(pdf_bytes: bytes, request: PDFRequest) -> bytes:
     """Adds signature pages dynamically based on content size."""
     try:
@@ -293,7 +274,7 @@ def add_signature_page(pdf_bytes: bytes, request: PDFRequest) -> bytes:
             for y_pos, text in zip(greeting_y_positions, greeting_texts):
                 # Calculate x position to center the text
                 text_width = len(text) * 5  # Approximate width
-                text_x = (page_width - text_width) / 2
+                text_x = (page_width / 2) - (text_width / 2)
                 page.insert_text((text_x, y_pos), text, fontsize=12, fontname="helvetica")
             
             # Signature Block Formatting
@@ -312,12 +293,19 @@ def add_signature_page(pdf_bytes: bytes, request: PDFRequest) -> bytes:
                 # Calculate position
                 header_x = x_margin + (col_position * column_width)
                 y = y_offset
-                
+                page.insert_font(fontfile=FONT_PATH, fontname="Segoe-Script")
                 # Insert text for role
                 page.insert_text((header_x, y), f"{entry.role}:", fontsize=font_size_title, fontname="helvetica-bold")
                 
-                # Use custom font for signature name
-                add_text_with_custom_font(page, (header_x, y + 15), entry.name, font_size_name, color=(0, 0, 1))
+                # Use italics and blue color for signature name to make it stand out
+                # Options for built-in fonts with a similar aesthetic to script:
+                # - "times-italicbold" (stylized but not script)
+                # - "times-italic" (elegant slant)
+                # - "zapfdingbats" (decorative but not readable text)
+                page.insert_text((header_x, y + 15), entry.name, 
+                                fontsize=font_size_name + 2,  # Slightly larger 
+                                fontname="Segoe-Script", 
+                                color=(0, 0, 1))  # Blue color
                 
                 # Draw signature line
                 line_y = y + 20
