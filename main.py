@@ -260,7 +260,7 @@ def embed_clickable_qr(page, url, x, y, size=80):
     page.insert_image(qr_rect, stream=qr_bytes)
     
     # Make the QR code clickable by adding a link annotation
-    page.add_link({
+    page.insert_link({
         "kind": fitz.LINK_URI,
         "uri": url,
         "from": qr_rect
