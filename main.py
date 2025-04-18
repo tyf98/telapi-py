@@ -238,32 +238,33 @@ def embed_image(page, image_bytes, x, y, size=(80, 80)):
         image_rect = fitz.Rect(x, y, x + size[0], y + size[1])
         page.insert_image(image_rect, stream=image_bytes)
 
-def create_qr_with_link(page, url, x_pos, y_pos, size=80):
-    # Generate QR code using segno
-    qr = segno.make(url, micro=False)
-    
-    # Convert QR code to PNG image data
-    img_bytes = io.BytesIO()
-    qr.save(img_bytes, kind='png', scale=10, border=1, dark="black", light="white")
-    img_bytes.seek(0)
-    
-    # Convert to PIL image for resizing
-    pil_img = Image.open(img_bytes)
-    pil_img = pil_img.resize((size, size))
-    
-    # Convert resized image back to bytes
-    resized_bytes = io.BytesIO()
-    pil_img.save(resized_bytes, format='PNG')
-    resized_bytes.seek(0)
-    
-    # Insert image into PDF
-    rect = fitz.Rect(x_pos, y_pos, x_pos + size, y_pos + size)
-    page.insert_image(rect, stream=resized_bytes.getvalue(), keep_proportion=True)
-    
-    # Add clickable link annotation over the QR code
-    page.add_link_annot(rect, uri=url)
-    
-    #return rect  # Return the rectangle where the QR was inserted
+def create_qr_with_link_simple(page, url, x_pos, y_pos, size=80):
+    try:
+        # Generate QR code
+        qr = segno.make(url)
+        
+        # Save directly to PNG with desired scale
+        temp_path = "temp_qr.png"
+        qr.save(temp_path, scale=8, border=1)
+        
+        # Insert image into PDF and scale it within PyMUPDF
+        rect = fitz.Rect(x_pos, y_pos, x_pos + size, y_pos + size)
+        page.insert_image(rect, filename=temp_path, keep_proportion=True)
+        
+        # Add clickable link annotation
+        page.add_link_annot(rect, uri=url)
+        
+        # Clean up
+        if os.path.exists(temp_path):
+            os.remove(temp_path)
+            
+        #return rect
+        
+    except Exception as e:
+        print(f"Error creating QR code: {e}")
+        if os.path.exists("temp_qr.png"):
+            os.remove("temp_qr.png")
+        raise
 
 def add_signature_page(pdf_bytes: bytes, request: PDFRequest) -> bytes:
     """Adds signature pages dynamically based on content size."""
