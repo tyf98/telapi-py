@@ -170,23 +170,6 @@ def save_result(qr_image: Image):
 
     return StreamingResponse(result_buffer, media_type="image/png")
 
-def encrypt_pdf(pdf_document):
-    """Restricts editing of the PDF but allows viewing without a password."""
-    # Generate a strong random password (32 bytes = 256 bits)
-    owner_password = secrets.token_hex(32)
-    
-    # Use a unique temporary filename
-    temp_filename = f"temp_{uuid.uuid4()}.pdf"
-    try:
-        pdf_document.save(temp_filename, encryption=fitz.PDF_ENCRYPT_AES_256, 
-                         user_pw="", owner_pw=owner_password, permissions=660)
-        with open(temp_filename, "rb") as f:
-            return f.read()
-    finally:
-        # Clean up the temporary file
-        if os.path.exists(temp_filename):
-            os.remove(temp_filename)
-
 class SignatureEntry(BaseModel):
     role: str
     name: str
@@ -203,6 +186,24 @@ class PDFRequest(BaseModel):
     level_5: List[SignatureEntry] = []
     logo_url_1: str  # First logo URL
     logo_url_2: str  # Second logo URL
+
+def encrypt_pdf(pdf_document):
+    """Restricts editing of the PDF but allows viewing without a password."""
+    # Generate a strong random password (20 bytes = 160 bits)
+    # This creates a 40-character hex string, which is the maximum allowed by PyMuPDF
+    owner_password = secrets.token_hex(20)
+    
+    # Use a unique temporary filename
+    temp_filename = f"temp_{uuid.uuid4()}.pdf"
+    try:
+        pdf_document.save(temp_filename, encryption=fitz.PDF_ENCRYPT_AES_256, 
+                         user_pw="", owner_pw=owner_password, permissions=660)
+        with open(temp_filename, "rb") as f:
+            return f.read()
+    finally:
+        # Clean up the temporary file
+        if os.path.exists(temp_filename):
+            os.remove(temp_filename)
 
 def fetch_and_resize_image(url, size=(80, 80)):
     """Fetches an image from URL, resizes it, and converts it to bytes while preserving transparency."""
@@ -288,7 +289,8 @@ def add_signature_page(pdf_bytes: bytes, request: PDFRequest) -> bytes:
                 
                 # Insert text
                 page.insert_text((header_x, y), f"{entry.role}:", fontsize=font_size_title, fontname="helvetica-bold")
-                page.insert_text((header_x, y + 15), entry.name, fontsize=font_size_name, fontname="times-italic", color=(0, 0, 1))
+                # Using Segoe Script for the signature name
+                page.insert_text((header_x, y + 15), entry.name, fontsize=font_size_name, fontname="Segoe Script", color=(0, 0, 1))
                 
                 # Draw signature line
                 line_y = y + 20
