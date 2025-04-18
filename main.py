@@ -19,7 +19,6 @@ import secrets
 import os
 import uuid
 import io
-import qrcode
 
 app = FastAPI()
 # Set up logging
@@ -240,30 +239,26 @@ def embed_image(page, image_bytes, x, y, size=(80, 80)):
         page.insert_image(image_rect, stream=image_bytes)
 
 def create_qr_with_link(page, url, x_pos, y_pos, size=80):
-    # Generate QR code
-    qr = qrcode.QRCode(
-        version=1,
-        error_correction=qrcode.constants.ERROR_CORRECT_L,
-        box_size=10,
-        border=1,
-    )
-    qr.add_data(url)
-    qr.make(fit=True)
+    # Generate QR code using segno
+    qr = segno.make(url, micro=False)
     
-    # Create a PIL image from the QR code
-    qr_img = qr.make_image(fill_color="black", back_color="white")
-    
-    # Resize image to match the logo size
-    qr_img = qr_img.resize((size, size))
-    
-    # Convert PIL image to bytes
+    # Convert QR code to PNG image data
     img_bytes = io.BytesIO()
-    qr_img.save(img_bytes, format='PNG')
+    qr.save(img_bytes, kind='png', scale=10, border=1, dark="black", light="white")
     img_bytes.seek(0)
+    
+    # Convert to PIL image for resizing
+    pil_img = Image.open(img_bytes)
+    pil_img = pil_img.resize((size, size))
+    
+    # Convert resized image back to bytes
+    resized_bytes = io.BytesIO()
+    pil_img.save(resized_bytes, format='PNG')
+    resized_bytes.seek(0)
     
     # Insert image into PDF
     rect = fitz.Rect(x_pos, y_pos, x_pos + size, y_pos + size)
-    page.insert_image(rect, stream=img_bytes.getvalue(), keep_proportion=True)
+    page.insert_image(rect, stream=resized_bytes.getvalue(), keep_proportion=True)
     
     # Add clickable link annotation over the QR code
     page.add_link_annot(rect, uri=url)
