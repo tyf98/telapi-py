@@ -109,20 +109,31 @@ def safeentry(param1: str, param2: str):
     }
 
     
+    
     try:
         response = requests.post(url, json=payload)
         response.raise_for_status()
-        data = response.json()
 
-        # Check if the response is exactly "record created"
+        # Try to parse JSON safely
+        try:
+            data = response.json()
+        except ValueError:
+            return JSONResponse(content={"error": "Invalid JSON response from API"}, status_code=502)
+
+        # Debug: log the response
+        print("API response:", data)
+
+        # Check for expected success message
         if data.get("response") == "record created":
-            redirect_url = "https://smrtcorp.sharepoint.com/sites/DO-Agility-Teamsite/SitePages/Thank-You.aspx"
-            return RedirectResponse(url=redirect_url)
+            redirect_url = f"https://smrtcorp.sharepoint.com/sites/DO-Agility-Teamsite/SitePages/Thank-You.aspx"
+            return RedirectResponse(url=redirect_url, status_code=302)
 
         return JSONResponse(content=data, status_code=response.status_code)
 
     except requests.exceptions.RequestException as e:
-        return JSONResponse(content={"error": str(e)}, status_code=500)
+        # Debug: log the error
+        print("Request error:", str(e))
+
 
 
 ##### Functions and Variables #####
