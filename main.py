@@ -98,6 +98,23 @@ def get_address(deviceLat: float, deviceLon: float):
     
     return formatted_address
 
+@app.get("/safeentry")
+def safeentry(param1: str, param2: str):
+    
+    
+    url = "https://prod-15.southeastasia.logic.azure.com:443/workflows/8a9d9233d3514079b0f1d9f41fea1283/triggers/manual/paths/invoke?api-version=2016-06-01&sp=%2Ftriggers%2Fmanual%2Frun&sv=1.0&sig=O9-DxW9S-SiXUmZN_l0cpehA8cwFptzoG9SNn5FGzG0"  # Replace with the actual endpoint URL
+    payload = {
+        "Param1": param1,
+        "Param2": param2
+    }
+
+    try:
+        response = requests.post(url, json=payload)
+        response.raise_for_status()
+        return JSONResponse(content=response.json(), status_code=response.status_code)
+    except requests.exceptions.RequestException as e:
+        return JSONResponse(content={"error": str(e)}, status_code=500)
+
 ##### Functions and Variables #####
 def generate_qr(data: str, color: str = '#000000'):
     # Generate QR code
