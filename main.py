@@ -108,12 +108,22 @@ def safeentry(param1: str, param2: str):
         "Param2": param2
     }
 
+    
     try:
         response = requests.post(url, json=payload)
         response.raise_for_status()
-        return JSONResponse(content=response.json(), status_code=response.status_code)
+        data = response.json()
+
+        # Check if the response is exactly "record created"
+        if data.get("response") == "record created":
+            redirect_url = "https://smrtcorp.sharepoint.com/sites/DO-Agility-Teamsite/SitePages/Thank-You.aspx"
+            return RedirectResponse(url=redirect_url)
+
+        return JSONResponse(content=data, status_code=response.status_code)
+
     except requests.exceptions.RequestException as e:
         return JSONResponse(content={"error": str(e)}, status_code=500)
+
 
 ##### Functions and Variables #####
 def generate_qr(data: str, color: str = '#000000'):
