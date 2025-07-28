@@ -99,13 +99,33 @@ def get_address(deviceLat: float, deviceLon: float):
     return formatted_address
 
 @app.get("/safeentry")
-def safeentry(param1: str, param2: str):
+def safeentry(areYouSMRTEmployee: str, datetimeOfRoomAccess: str, locationOfSensitiveArea:str, purposeOfAccess:str, specificRoom:str, specificSiteType:str, specificSite:str, companyName:str, department:str, epNo:str, last4DigitOfNRIC:str, smrtEmailAddress:str, emailAddress:str, screeningStatus:str, title:str, signInSignOutStatus:str,areYouEscorted:str,  escortPersonName:str, escortPersonNumber:str,roomNumber:str, ptwNumber:str, roomAlias:str):
     
     
-    url = "https://prod-15.southeastasia.logic.azure.com:443/workflows/8a9d9233d3514079b0f1d9f41fea1283/triggers/manual/paths/invoke?api-version=2016-06-01&sp=%2Ftriggers%2Fmanual%2Frun&sv=1.0&sig=O9-DxW9S-SiXUmZN_l0cpehA8cwFptzoG9SNn5FGzG0"  # Replace with the actual endpoint URL
+    url = "https://prod-58.southeastasia.logic.azure.com:443/workflows/e91c748912984684bab099f0ebba6ed1/triggers/manual/paths/invoke?api-version=2016-06-01&sp=%2Ftriggers%2Fmanual%2Frun&sv=1.0&sig=usfq10H_S9sIiIBCxununaUa7RYrFeniNX3cXhwumMc"
     payload = {
-        "Param1": param1,
-        "Param2": param2
+        "areYouSMRTEmployee": areYouSMRTEmployee,
+        "datetimeOfRoomAccess": datetimeOfRoomAccess,
+        "locationOfSensitiveArea": locationOfSensitiveArea,
+        "purposeOfAccess": purposeOfAccess,
+        "specificRoom": specificRoom,
+        "specificSiteType": specificSiteType,
+        "specificSite": specificSite,
+        "companyName": companyName,
+        "department": department,
+        "epNo": epNo,
+        "last4DigitOfNRIC": last4DigitOfNRIC,
+        "smrtEmailAddress": smrtEmailAddress,
+        "emailAddress": emailAddress,
+        "screeningStatus": screeningStatus,
+        "title": title,
+        "signInSignOutStatus": signInSignOutStatus,
+        "areYouEscorted": areYouEscorted,
+        "escortPersonName": escortPersonName,
+        "escortPersonNumber": escortPersonNumber,
+        "roomNumber": roomNumber,
+        "ptwNumber": ptwNumber,
+        "roomAlias": roomAlias
     }
 
     
