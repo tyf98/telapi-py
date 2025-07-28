@@ -99,7 +99,7 @@ def get_address(deviceLat: float, deviceLon: float):
     return formatted_address
 
 @app.get("/safeentry")
-def safeentry(areYouSMRTEmployee: str, datetimeOfRoomAccess: str, locationOfSensitiveArea:str, purposeOfAccess:str, specificRoom:str, specificSiteType:str, specificSite:str, companyName:str, department:str, epNo:str, last4DigitOfNRIC:str, smrtEmailAddress:str, emailAddress:str, screeningStatus:str, title:str, signInSignOutStatus:str,areYouEscorted:str,  escortPersonName:str, escortPersonNumber:str,roomNumber:str, ptwNumber:str, roomAlias:str):
+def safeentry(areYouSMRTEmployee: str='', datetimeOfRoomAccess: str='', locationOfSensitiveArea:str='', purposeOfAccess:str='', specificRoom:str='', specificSiteType:str='', specificSite:str='', companyName:str='', department:str='', epNo:str='', last4DigitOfNRIC:str='', smrtEmailAddress:str='', emailAddress:str='', screeningStatus:str='', title:str='', signInSignOutStatus:str='',areYouEscorted:str='',  escortPersonName:str='', escortPersonNumber:str='',roomNumber:str='', ptwNumber:str='', roomAlias:str=''):
     
     
     url = "https://prod-58.southeastasia.logic.azure.com:443/workflows/e91c748912984684bab099f0ebba6ed1/triggers/manual/paths/invoke?api-version=2016-06-01&sp=%2Ftriggers%2Fmanual%2Frun&sv=1.0&sig=usfq10H_S9sIiIBCxununaUa7RYrFeniNX3cXhwumMc"
